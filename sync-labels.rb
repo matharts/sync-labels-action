@@ -111,7 +111,23 @@ class GitHubApi
           response.body.to_s
         end
 
-      raise "GitHub API #{response.code}: #{message}"
+      accepted_permissions =
+        response["x-accepted-github-permissions"].to_s
+
+      raise(
+        [
+          "GitHub API request failed",
+          "Method: #{request.method}",
+          "Path: #{path}",
+          "Status: #{response.code}",
+          "Message: #{message}",
+          (
+            accepted_permissions.empty? ?
+              nil :
+              "Accepted permissions: #{accepted_permissions}"
+          )
+        ].compact.join("\n")
+      )
     end
 
     return nil if response.body.nil? || response.body.empty?
