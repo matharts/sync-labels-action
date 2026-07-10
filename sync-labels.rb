@@ -114,20 +114,26 @@ class GitHubApi
       accepted_permissions =
         response["x-accepted-github-permissions"].to_s
 
-      raise(
-        [
-          "GitHub API request failed",
-          "Method: #{request.method}",
-          "Path: #{path}",
-          "Status: #{response.code}",
-          "Message: #{message}",
-          (
-            accepted_permissions.empty? ?
-              nil :
-              "Accepted permissions: #{accepted_permissions}"
-          )
-        ].compact.join("\n")
-      )
+      oauth_scopes =
+        response["x-oauth-scopes"].to_s
+
+      details = [
+        "GitHub API request failed",
+        "Method: #{request.method}",
+        "Path: #{path}",
+        "Status: #{response.code}",
+        "Message: #{message}"
+      ]
+
+      unless accepted_permissions.empty?
+        details << "Accepted permissions: #{accepted_permissions}"
+      end
+
+      unless oauth_scopes.empty?
+        details << "Token scopes: #{oauth_scopes}"
+      end
+
+      raise details.join("\n")
     end
 
     return nil if response.body.nil? || response.body.empty?
@@ -613,9 +619,13 @@ repositories.each do |repository|
   rescue StandardError => error
     puts(
       "::error title=标签同步失败::" \
-      "#{full_name}: " \
-      "#{error.message.lines.first.to_s.strip}"
+      "#{full_name}: #{error.message.lines.first.to_s.strip}"
     )
+
+    puts
+    puts "Repository: #{full_name}"
+    puts error.message
+    puts
 
     results << {
       repository: full_name,
