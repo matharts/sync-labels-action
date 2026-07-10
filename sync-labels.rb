@@ -7,27 +7,28 @@ require "set"
 require "uri"
 require "yaml"
 
-TOKEN = ENV.fetch("SYNC_LABELS_TOKEN")
-OWNER = ENV.fetch("SYNC_LABELS_OWNER")
+TOKEN = ENV.fetch("SYNC_LABELS_TOKEN", "")
+OWNER = ENV.fetch("SYNC_LABELS_OWNER", "")
+CONFIG_FILE = ENV.fetch("SYNC_LABELS_CONFIG_FILE", ".github/labels.yml")
+ONLY_REPOSITORY = ENV.fetch("SYNC_LABELS_REPOSITORY", "").strip
+API_URL = ENV.fetch("SYNC_LABELS_API_URL", "https://api.github.com").sub(%r{/\z}, "")
+DRY_RUN = %w[1 true yes on].include?(ENV.fetch("SYNC_LABELS_DRY_RUN", "true").downcase)
 
-CONFIG_FILE = ENV.fetch(
-  "SYNC_LABELS_CONFIG_FILE",
-  ".github/labels.yml"
-)
+MANAGED_PREFIXES = %w[
+  type:
+  status:
+  priority:
+  impact:
+  process:
+  resolution:
+].freeze
 
-ONLY_REPOSITORY = ENV.fetch(
-  "SYNC_LABELS_REPOSITORY",
-  ""
-).strip
-
-API_URL = ENV.fetch(
-  "SYNC_LABELS_API_URL",
-  "https://api.github.com"
-).sub(%r{/\z}, "")
-
-DRY_RUN = %w[1 true yes on].include?(
-  ENV.fetch("SYNC_LABELS_DRY_RUN", "true").downcase
-)
+MANAGED_EXACT_NAMES = Set.new(
+  [
+    "good first issue",
+    "help wanted"
+  ]
+).freeze
 
 class GitHubApi
   def initialize(token:, base_url:)
@@ -57,17 +58,10 @@ class GitHubApi
 
     loop do
       separator = path.include?("?") ? "&" : "?"
-
-      batch = get(
-        "#{path}#{separator}per_page=100&page=#{page}"
-      )
-
-      unless batch.is_a?(Array)
-        raise "GitHub API 分页结果不是数组。"
-      end
+      batch = get("#{path}#{separator}per_page=100&page=#{page}")
+      raise "GitHub API 分页结果不是数组。" unless batch.is_a?(Array)
 
       results.concat(batch)
-
       break if batch.length < 100
 
       page += 1
@@ -81,7 +75,6 @@ class GitHubApi
   def request(request_class, path, body = nil)
     uri = URI.parse("#{@base_url}#{path}")
     request = request_class.new(uri)
-
     request["Accept"] = "application/vnd.github+json"
     request["Authorization"] = "Bearer #{@token}"
     request["User-Agent"] = "matharts-sync-labels"
@@ -103,19 +96,12 @@ class GitHubApi
     end
 
     unless response.code.to_i.between?(200, 299)
-      message =
-        begin
-          parsed = JSON.parse(response.body.to_s)
-          parsed["message"] || response.body.to_s
-        rescue JSON::ParserError
-          response.body.to_s
-        end
-
-      accepted_permissions =
-        response["x-accepted-github-permissions"].to_s
-
-      oauth_scopes =
-        response["x-oauth-scopes"].to_s
+      message = begin
+        parsed = JSON.parse(response.body.to_s)
+        parsed["message"] || response.body.to_s
+      rescue JSON::ParserError
+        response.body.to_s
+      end
 
       details = [
         "GitHub API request failed",
@@ -125,13 +111,10 @@ class GitHubApi
         "Message: #{message}"
       ]
 
-      unless accepted_permissions.empty?
-        details << "Accepted permissions: #{accepted_permissions}"
-      end
-
-      unless oauth_scopes.empty?
-        details << "Token scopes: #{oauth_scopes}"
-      end
+      accepted_permissions = response["x-accepted-github-permissions"].to_s
+      oauth_scopes = response["x-oauth-scopes"].to_s
+      details << "Accepted permissions: #{accepted_permissions}" unless accepted_permissions.empty?
+      details << "Token scopes: #{oauth_scopes}" unless oauth_scopes.empty?
 
       raise details.join("\n")
     end
@@ -143,26 +126,18 @@ class GitHubApi
 end
 
 def label_key(value)
-  value
-    .to_s
-    .unicode_normalize(:nfc)
-    .downcase
+  value.to_s.unicode_normalize(:nfc).downcase
 rescue StandardError
   value.to_s.downcase
 end
 
 def escape_segment(value)
-  URI
-    .encode_www_form_component(value.to_s)
-    .gsub("+", "%20")
+  URI.encode_www_form_component(value.to_s).gsub("+", "%20")
 end
 
 def repository_path(full_name)
   owner, repository = full_name.split("/", 2)
-
-  if owner.to_s.empty? || repository.to_s.empty?
-    raise "无效仓库名称：#{full_name.inspect}"
-  end
+  raise "无效仓库名称：#{full_name.inspect}" if owner.to_s.empty? || repository.to_s.empty?
 
   "#{escape_segment(owner)}/#{escape_segment(repository)}"
 end
@@ -175,79 +150,29 @@ def load_labels(path)
     aliases: false
   )
 
-  unless parsed.is_a?(Array)
-    raise "#{path} 的 YAML 根节点必须是数组。"
-  end
+  raise "#{path} 的 YAML 根节点必须是数组。" unless parsed.is_a?(Array)
+  raise "#{path} 不能为空。" if parsed.empty?
 
-  if parsed.empty?
-    raise(
-      "#{path} 不能为空；严格同步会删除仓库中的全部标签。"
-    )
-  end
-
-  allowed_keys = Set.new(
-    %w[
-      name
-      color
-      description
-      aliases
-    ]
-  )
+  allowed_keys = Set.new(%w[name color description aliases])
 
   labels = parsed.map.with_index do |entry, index|
-    unless entry.is_a?(Hash)
-      raise "#{path} 第 #{index + 1} 项必须是对象。"
-    end
+    raise "#{path} 第 #{index + 1} 项必须是对象。" unless entry.is_a?(Hash)
 
-    unknown_keys =
-      entry.keys.map(&:to_s).to_set - allowed_keys
-
+    unknown_keys = entry.keys.map(&:to_s).to_set - allowed_keys
     unless unknown_keys.empty?
-      raise(
-        "#{path} 第 #{index + 1} 项包含未知字段：" \
-        "#{unknown_keys.to_a.sort.join(', ')}"
-      )
+      raise "#{path} 第 #{index + 1} 项包含未知字段：#{unknown_keys.to_a.sort.join(', ')}"
     end
 
     name = entry["name"].to_s.strip
+    color = entry["color"].to_s.delete_prefix("#").upcase
+    description = entry.fetch("description", "").to_s.strip
+    aliases = Array(entry["aliases"]).map { |value| value.to_s.strip }
 
-    color = entry["color"]
-      .to_s
-      .delete_prefix("#")
-      .upcase
-
-    description = entry
-      .fetch("description", "")
-      .to_s
-      .strip
-
-    aliases = Array(entry["aliases"]).map do |value|
-      value.to_s.strip
-    end
-
-    if name.empty?
-      raise "#{path} 第 #{index + 1} 项缺少 name。"
-    end
-
-    if name.length > 50
-      raise "标签名称超过 50 个字符：#{name}"
-    end
-
-    unless color.match?(/\A[0-9A-F]{6}\z/)
-      raise(
-        "#{name} 的 color 必须是六位十六进制值。"
-      )
-    end
-
-    if description.length > 100
-      raise(
-        "#{name} 的 description 超过 100 个字符。"
-      )
-    end
-
-    if aliases.any?(&:empty?)
-      raise "#{name} 的 aliases 不能包含空值。"
-    end
+    raise "#{path} 第 #{index + 1} 项缺少 name。" if name.empty?
+    raise "标签名称超过 50 个字符：#{name}" if name.length > 50
+    raise "#{name} 的 color 必须是六位十六进制值。" unless color.match?(/\A[0-9A-F]{6}\z/)
+    raise "#{name} 的 description 超过 100 个字符。" if description.length > 100
+    raise "#{name} 的 aliases 不能包含空值。" if aliases.any?(&:empty?)
 
     {
       "name" => name,
@@ -257,42 +182,23 @@ def load_labels(path)
     }
   end
 
-  desired_names = labels.map do |label|
-    label_key(label["name"])
-  end
-
-  unless desired_names.uniq.length == desired_names.length
-    raise "#{path} 包含重复标签名称。"
-  end
+  desired_names = labels.map { |label| label_key(label["name"]) }
+  raise "#{path} 包含重复标签名称。" unless desired_names.uniq.length == desired_names.length
 
   desired_set = desired_names.to_set
   alias_owners = {}
 
   labels.each do |label|
-    normalized_aliases = label["aliases"].map do |name|
-      label_key(name)
-    end
-
-    unless normalized_aliases.uniq.length ==
-           normalized_aliases.length
-      raise "#{label['name']} 包含重复 aliases。"
-    end
+    normalized_aliases = label["aliases"].map { |name| label_key(name) }
+    raise "#{label['name']} 包含重复 aliases。" unless normalized_aliases.uniq.length == normalized_aliases.length
 
     label["aliases"].each do |alias_name|
       alias_key = label_key(alias_name)
-
       if desired_set.include?(alias_key)
-        raise(
-          "#{label['name']} 的 alias " \
-          "#{alias_name.inspect} 同时是正式标签名称。"
-        )
+        raise "#{label['name']} 的 alias #{alias_name.inspect} 同时是正式标签名称。"
       end
-
       if alias_owners.key?(alias_key)
-        raise(
-          "alias #{alias_name.inspect} 同时映射到 " \
-          "#{alias_owners[alias_key]} 和 #{label['name']}。"
-        )
+        raise "alias #{alias_name.inspect} 同时映射到 #{alias_owners[alias_key]} 和 #{label['name']}。"
       end
 
       alias_owners[alias_key] = label["name"]
@@ -306,31 +212,32 @@ rescue Psych::SyntaxError => error
   raise "标签配置 YAML 无效：#{error.message}"
 end
 
-def sync_repository(
-  api,
-  full_name,
-  desired_labels,
-  dry_run:
-)
+def managed_label?(name, alias_keys)
+  key = label_key(name)
+  MANAGED_PREFIXES.any? { |prefix| key.start_with?(prefix) } ||
+    MANAGED_EXACT_NAMES.include?(key) ||
+    alias_keys.include?(key)
+end
+
+def mutate(api, dry_run, method, *arguments)
+  api.public_send(method, *arguments) unless dry_run
+end
+
+def sync_repository(api, full_name, desired_labels, dry_run:)
   path = repository_path(full_name)
+  existing = api.paginate("/repos/#{path}/labels")
+  labels_by_name = existing.to_h { |label| [label_key(label["name"]), label] }
 
-  existing = api.paginate(
-    "/repos/#{path}/labels"
-  )
-
-  labels_by_name = existing.to_h do |label|
-    [
-      label_key(label["name"]),
-      label
-    ]
-  end
+  desired_keys = desired_labels.map { |label| label_key(label["name"]) }.to_set
+  alias_keys = desired_labels.flat_map { |label| label["aliases"] }.map { |name| label_key(name) }.to_set
 
   counts = {
     created: 0,
     updated: 0,
     renamed: 0,
     deleted: 0,
-    unchanged: 0
+    unchanged: 0,
+    preserved: 0
   }
 
   puts "::group::#{full_name}"
@@ -339,155 +246,106 @@ def sync_repository(
     desired_name = desired["name"]
     desired_key = label_key(desired_name)
     current = labels_by_name[desired_key]
-
-    alias_matches =
-      desired["aliases"]
-        .filter_map do |alias_name|
-          labels_by_name[label_key(alias_name)]
-        end
-        .uniq do |label|
-          label_key(label["name"])
-        end
+    alias_matches = desired["aliases"].filter_map { |alias_name| labels_by_name[label_key(alias_name)] }
+      .uniq { |label| label_key(label["name"]) }
 
     if current
-      changed =
-        current["name"] != desired_name ||
+      changed = current["name"] != desired_name ||
         current["color"].to_s.upcase != desired["color"] ||
         current["description"].to_s != desired["description"]
 
       if changed
-        puts(
-          "#{dry_run ? 'WOULD UPDATE' : 'UPDATE'}     " \
-          "#{current['name']} -> #{desired_name}"
-        )
-
-        unless dry_run
-          api.patch(
-            "/repos/#{path}/labels/" \
-            "#{escape_segment(current['name'])}",
-            {
-              new_name: desired_name,
-              color: desired["color"],
-              description: desired["description"]
-            }
-          )
-        end
-
-        labels_by_name.delete(
-          label_key(current["name"])
-        )
-
-        labels_by_name[desired_key] = desired
-
-        counts[:updated] += 1
-      else
-        puts "UNCHANGED       #{desired_name}"
-        counts[:unchanged] += 1
-      end
-
-      # 如果正式标签和旧 alias 同时存在，
-      # alias 会在后面的严格删除阶段被删除。
-      next
-    end
-
-    if alias_matches.length > 1
-      names = alias_matches
-        .map { |label| label["name"] }
-        .join(", ")
-
-      raise(
-        "多个旧标签同时映射到 #{desired_name}：#{names}"
-      )
-    end
-
-    if alias_matches.length == 1
-      old = alias_matches.first
-
-      puts(
-        "#{dry_run ? 'WOULD RENAME' : 'RENAME'}     " \
-        "#{old['name']} -> #{desired_name}"
-      )
-
-      unless dry_run
-        api.patch(
-          "/repos/#{path}/labels/" \
-          "#{escape_segment(old['name'])}",
+        puts "#{dry_run ? 'WOULD UPDATE' : 'UPDATE'}     #{current['name']} -> #{desired_name}"
+        mutate(
+          api,
+          dry_run,
+          :patch,
+          "/repos/#{path}/labels/#{escape_segment(current['name'])}",
           {
             new_name: desired_name,
             color: desired["color"],
             description: desired["description"]
           }
         )
+        counts[:updated] += 1
+      else
+        puts "UNCHANGED       #{desired_name}"
+        counts[:unchanged] += 1
       end
 
-      labels_by_name.delete(
-        label_key(old["name"])
-      )
-
+      labels_by_name.delete(label_key(current["name"]))
       labels_by_name[desired_key] = desired
 
-      counts[:renamed] += 1
+      alias_matches.each do |legacy|
+        legacy_name = legacy.fetch("name")
+        puts "#{dry_run ? 'WOULD DELETE' : 'DELETE'}     legacy alias #{legacy_name}"
+        mutate(api, dry_run, :delete, "/repos/#{path}/labels/#{escape_segment(legacy_name)}")
+        labels_by_name.delete(label_key(legacy_name))
+        counts[:deleted] += 1
+      end
+
       next
     end
 
-    puts(
-      "#{dry_run ? 'WOULD CREATE' : 'CREATE'}     " \
-      "#{desired_name}"
-    )
+    if alias_matches.length > 1
+      names = alias_matches.map { |label| label["name"] }.join(", ")
+      raise "多个旧标签同时映射到 #{desired_name}：#{names}"
+    end
 
-    unless dry_run
-      api.post(
-        "/repos/#{path}/labels",
+    if alias_matches.length == 1
+      old = alias_matches.first
+      puts "#{dry_run ? 'WOULD RENAME' : 'RENAME'}     #{old['name']} -> #{desired_name}"
+      mutate(
+        api,
+        dry_run,
+        :patch,
+        "/repos/#{path}/labels/#{escape_segment(old['name'])}",
         {
-          name: desired_name,
+          new_name: desired_name,
           color: desired["color"],
           description: desired["description"]
         }
       )
+      labels_by_name.delete(label_key(old["name"]))
+      labels_by_name[desired_key] = desired
+      counts[:renamed] += 1
+      next
     end
 
+    puts "#{dry_run ? 'WOULD CREATE' : 'CREATE'}     #{desired_name}"
+    mutate(
+      api,
+      dry_run,
+      :post,
+      "/repos/#{path}/labels",
+      {
+        name: desired_name,
+        color: desired["color"],
+        description: desired["description"]
+      }
+    )
     labels_by_name[desired_key] = desired
-
     counts[:created] += 1
   end
 
-  desired_names =
-    desired_labels
-      .map { |label| label_key(label["name"]) }
-      .to_set
+  remaining = labels_by_name.values.reject { |label| desired_keys.include?(label_key(label["name"])) }
+  stale_managed, repository_specific = remaining.partition do |label|
+    managed_label?(label["name"], alias_keys)
+  end
 
-  extra_labels =
-    labels_by_name
-      .values
-      .reject do |label|
-        desired_names.include?(
-          label_key(label["name"])
-        )
-      end
-      .sort_by do |label|
-        label["name"].downcase
-      end
-
-  extra_labels.each do |label|
+  stale_managed.sort_by { |label| label["name"].downcase }.each do |label|
     name = label.fetch("name")
-
-    puts(
-      "#{dry_run ? 'WOULD DELETE' : 'DELETE'}     " \
-      "#{name}"
-    )
-
-    unless dry_run
-      api.delete(
-        "/repos/#{path}/labels/" \
-        "#{escape_segment(name)}"
-      )
-    end
-
+    puts "#{dry_run ? 'WOULD DELETE' : 'DELETE'}     stale organization label #{name}"
+    mutate(api, dry_run, :delete, "/repos/#{path}/labels/#{escape_segment(name)}")
     counts[:deleted] += 1
   end
 
-  puts "::endgroup::"
+  repository_specific.sort_by { |label| label["name"].downcase }.each do |label|
+    puts "PRESERVE        repository label #{label['name']}"
+    counts[:preserved] += 1
+  end
 
+  puts "::endgroup::"
   counts
 rescue StandardError
   puts "::endgroup::"
@@ -496,41 +354,24 @@ end
 
 def write_summary(results, failures)
   summary_path = ENV["GITHUB_STEP_SUMMARY"]
-
   return if summary_path.to_s.empty?
 
-  File.open(
-    summary_path,
-    "a",
-    encoding: "UTF-8"
-  ) do |summary|
+  File.open(summary_path, "a", encoding: "UTF-8") do |summary|
     summary.puts "# 标签同步结果"
     summary.puts
     summary.puts "- 组织：`#{OWNER}`"
     summary.puts "- 配置：`#{CONFIG_FILE}`"
     summary.puts "- Dry Run：`#{DRY_RUN}`"
-    summary.puts "- 模式：严格镜像"
+    summary.puts "- 模式：组织级标签受管子集"
     summary.puts
-
-    summary.puts(
-      "| 仓库 | 状态 | 新建 | 更新 | " \
-      "重命名 | 删除 | 未变化 |"
-    )
-
-    summary.puts(
-      "| --- | --- | ---: | ---: | " \
-      "---: | ---: | ---: |"
-    )
+    summary.puts "| 仓库 | 状态 | 新建 | 更新 | 重命名 | 删除 | 未变化 | 保留扩展 |"
+    summary.puts "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
 
     results.each do |result|
       summary.puts(
-        "| `#{result[:repository]}` " \
-        "| #{result[:status]} " \
-        "| #{result[:created]} " \
-        "| #{result[:updated]} " \
-        "| #{result[:renamed]} " \
-        "| #{result[:deleted]} " \
-        "| #{result[:unchanged]} |"
+        "| `#{result[:repository]}` | #{result[:status]} | #{result[:created]} | " \
+        "#{result[:updated]} | #{result[:renamed]} | #{result[:deleted]} | " \
+        "#{result[:unchanged]} | #{result[:preserved]} |"
       )
     end
 
@@ -538,124 +379,82 @@ def write_summary(results, failures)
       summary.puts
       summary.puts "## 失败"
       summary.puts
-
       failures.each do |failure|
-        message = failure[:error]
-          .gsub("\n", " ")
-          .gsub("|", "\\|")
-
-        summary.puts(
-          "- `#{failure[:repository]}`：#{message}"
-        )
+        message = failure[:error].gsub("\n", " ").gsub("|", "\\|")
+        summary.puts "- `#{failure[:repository]}`：#{message}"
       end
     end
   end
 end
 
-desired_labels = load_labels(CONFIG_FILE)
+def run
+  raise "SYNC_LABELS_TOKEN 不能为空。" if TOKEN.empty?
+  raise "SYNC_LABELS_OWNER 不能为空。" if OWNER.empty?
 
-api = GitHubApi.new(
-  token: TOKEN,
-  base_url: API_URL
-)
-
-repositories =
-  api.paginate(
-    "/orgs/#{escape_segment(OWNER)}/repos" \
-    "?type=all&sort=full_name&direction=asc"
+  desired_labels = load_labels(CONFIG_FILE)
+  api = GitHubApi.new(token: TOKEN, base_url: API_URL)
+  repositories = api.paginate(
+    "/orgs/#{escape_segment(OWNER)}/repos?type=all&sort=full_name&direction=asc"
   ).select do |repository|
-    !repository["archived"] &&
-      !repository["disabled"] &&
-      !repository["fork"]
+    !repository["archived"] && !repository["disabled"] && !repository["fork"]
   end
 
-unless ONLY_REPOSITORY.empty?
-  expected =
-    if ONLY_REPOSITORY.include?("/")
-      ONLY_REPOSITORY
-    else
-      "#{OWNER}/#{ONLY_REPOSITORY}"
+  unless ONLY_REPOSITORY.empty?
+    expected = ONLY_REPOSITORY.include?("/") ? ONLY_REPOSITORY : "#{OWNER}/#{ONLY_REPOSITORY}"
+    repositories.select! { |repository| repository["full_name"].casecmp(expected).zero? }
+    if repositories.empty?
+      raise "找不到可同步仓库 #{expected}。请检查名称、令牌访问范围和仓库状态。"
     end
-
-  repositories.select! do |repository|
-    repository["full_name"]
-      .casecmp(expected)
-      .zero?
   end
 
-  if repositories.empty?
-    raise(
-      "找不到可同步仓库 #{expected}。" \
-      "请检查名称、令牌访问范围和仓库状态。"
-    )
+  puts "Owner: #{OWNER}"
+  puts "Config: #{CONFIG_FILE}"
+  puts "Dry run: #{DRY_RUN}"
+  puts "Repositories: #{repositories.length}"
+  puts
+
+  results = []
+  failures = []
+
+  repositories.each do |repository|
+    full_name = repository.fetch("full_name")
+
+    begin
+      counts = sync_repository(api, full_name, desired_labels, dry_run: DRY_RUN)
+      results << {
+        repository: full_name,
+        status: DRY_RUN ? "预览完成" : "同步完成",
+        **counts
+      }
+    rescue StandardError => error
+      puts "::error title=标签同步失败::#{full_name}: #{error.message.lines.first.to_s.strip}"
+      puts
+      puts "Repository: #{full_name}"
+      puts error.message
+      puts
+
+      results << {
+        repository: full_name,
+        status: "失败",
+        created: 0,
+        updated: 0,
+        renamed: 0,
+        deleted: 0,
+        unchanged: 0,
+        preserved: 0
+      }
+      failures << { repository: full_name, error: error.message }
+    end
   end
-end
 
-puts "Owner: #{OWNER}"
-puts "Config: #{CONFIG_FILE}"
-puts "Dry run: #{DRY_RUN}"
-puts "Repositories: #{repositories.length}"
-puts
+  write_summary(results, failures)
 
-results = []
-failures = []
-
-repositories.each do |repository|
-  full_name = repository.fetch("full_name")
-
-  begin
-    counts = sync_repository(
-      api,
-      full_name,
-      desired_labels,
-      dry_run: DRY_RUN
-    )
-
-    results << {
-      repository: full_name,
-      status: DRY_RUN ? "预览完成" : "同步完成",
-      **counts
-    }
-  rescue StandardError => error
-    puts(
-      "::error title=标签同步失败::" \
-      "#{full_name}: #{error.message.lines.first.to_s.strip}"
-    )
-
-    puts
-    puts "Repository: #{full_name}"
-    puts error.message
-    puts
-
-    results << {
-      repository: full_name,
-      status: "失败",
-      created: 0,
-      updated: 0,
-      renamed: 0,
-      deleted: 0,
-      unchanged: 0
-    }
-
-    failures << {
-      repository: full_name,
-      error: error.message
-    }
+  if failures.any?
+    warn "#{failures.length} 个仓库同步失败。"
+    exit 1
   end
+
+  puts(DRY_RUN ? "Dry Run 完成。" : "标签同步完成。")
 end
 
-write_summary(
-  results,
-  failures
-)
-
-if failures.any?
-  warn "#{failures.length} 个仓库同步失败。"
-  exit 1
-end
-
-puts(
-  DRY_RUN ?
-    "Dry Run 完成。" :
-    "标签同步完成。"
-)
+run if $PROGRAM_NAME == __FILE__

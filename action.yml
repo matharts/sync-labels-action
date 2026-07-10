@@ -1,5 +1,5 @@
 name: "MathArts Sync Labels"
-description: "以 .github/labels.yml 为权威来源，严格同步组织内仓库标签"
+description: "同步组织级受管标签，同时保留仓库自行维护的扩展标签"
 
 inputs:
   token:
