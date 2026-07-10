@@ -1,0 +1,46 @@
+name: "MathArts Sync Labels"
+description: "以 .github/labels.yml 为权威来源，严格同步组织内仓库标签"
+
+inputs:
+  token:
+    description: "可以读取组织仓库并管理仓库标签的令牌"
+    required: true
+
+  owner:
+    description: "需要同步的 GitHub 组织名称"
+    required: true
+
+  config_file:
+    description: "权威标签配置文件路径"
+    required: false
+    default: ".github/labels.yml"
+
+  dry_run:
+    description: "仅预览变更，不实际修改标签"
+    required: false
+    default: "true"
+
+  repository:
+    description: "只同步指定仓库；留空时同步全部仓库"
+    required: false
+    default: ""
+
+  api_url:
+    description: "GitHub REST API 地址"
+    required: false
+    default: "https://api.github.com"
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Validate and synchronize labels
+      shell: bash
+      env:
+        SYNC_LABELS_TOKEN: ${{ inputs.token }}
+        SYNC_LABELS_OWNER: ${{ inputs.owner }}
+        SYNC_LABELS_CONFIG_FILE: ${{ inputs.config_file }}
+        SYNC_LABELS_DRY_RUN: ${{ inputs.dry_run }}
+        SYNC_LABELS_REPOSITORY: ${{ inputs.repository }}
+        SYNC_LABELS_API_URL: ${{ inputs.api_url }}
+      run: ruby "${{ github.action_path }}/sync-labels.rb"
