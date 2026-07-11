@@ -1,5 +1,5 @@
 name: "MathArts Sync Labels"
-description: "同步组织级受管标签，同时保留仓库自行维护的扩展标签"
+description: "按组织策略同步受管标签，同时保留仓库自行维护的扩展标签"
 
 inputs:
   token:
@@ -15,13 +15,18 @@ inputs:
     required: false
     default: ".github/labels.yml"
 
+  policy_file:
+    description: "标签所有权和仓库 Allowlist 策略文件路径"
+    required: false
+    default: ".github/label-policy.yml"
+
   dry_run:
     description: "仅预览变更，不实际修改标签"
     required: false
     default: "true"
 
   repository:
-    description: "只同步指定仓库；留空时同步全部仓库"
+    description: "只同步 Allowlist 中的指定仓库；留空时同步全部 Allowlist 仓库"
     required: false
     default: ""
 
@@ -34,12 +39,13 @@ runs:
   using: "composite"
 
   steps:
-    - name: Validate and synchronize labels
+    - name: Validate policy and synchronize labels
       shell: bash
       env:
         SYNC_LABELS_TOKEN: ${{ inputs.token }}
         SYNC_LABELS_OWNER: ${{ inputs.owner }}
         SYNC_LABELS_CONFIG_FILE: ${{ inputs.config_file }}
+        SYNC_LABELS_POLICY_FILE: ${{ inputs.policy_file }}
         SYNC_LABELS_DRY_RUN: ${{ inputs.dry_run }}
         SYNC_LABELS_REPOSITORY: ${{ inputs.repository }}
         SYNC_LABELS_API_URL: ${{ inputs.api_url }}

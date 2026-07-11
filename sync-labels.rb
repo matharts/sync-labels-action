@@ -10,25 +10,10 @@ require "yaml"
 TOKEN = ENV.fetch("SYNC_LABELS_TOKEN", "")
 OWNER = ENV.fetch("SYNC_LABELS_OWNER", "")
 CONFIG_FILE = ENV.fetch("SYNC_LABELS_CONFIG_FILE", ".github/labels.yml")
+POLICY_FILE = ENV.fetch("SYNC_LABELS_POLICY_FILE", ".github/label-policy.yml")
 ONLY_REPOSITORY = ENV.fetch("SYNC_LABELS_REPOSITORY", "").strip
 API_URL = ENV.fetch("SYNC_LABELS_API_URL", "https://api.github.com").sub(%r{/\z}, "")
 DRY_RUN = %w[1 true yes on].include?(ENV.fetch("SYNC_LABELS_DRY_RUN", "true").downcase)
-
-MANAGED_PREFIXES = %w[
-  type:
-  status:
-  priority:
-  impact:
-  process:
-  resolution:
-].freeze
-
-MANAGED_EXACT_NAMES = Set.new(
-  [
-    "good first issue",
-    "help wanted"
-  ]
-).freeze
 
 class GitHubApi
   def initialize(token:, base_url:)
@@ -142,13 +127,21 @@ def repository_path(full_name)
   "#{escape_segment(owner)}/#{escape_segment(repository)}"
 end
 
-def load_labels(path)
-  parsed = YAML.safe_load(
+def load_yaml(path, description)
+  YAML.safe_load(
     File.read(path, encoding: "UTF-8"),
     permitted_classes: [],
     permitted_symbols: [],
     aliases: false
   )
+rescue Errno::ENOENT
+  raise "找不到#{description}：#{path}"
+rescue Psych::SyntaxError => error
+  raise "#{description} YAML 无效：#{error.message}"
+end
+
+def load_labels(path)
+  parsed = load_yaml(path, "标签配置文件")
 
   raise "#{path} 的 YAML 根节点必须是数组。" unless parsed.is_a?(Array)
   raise "#{path} 不能为空。" if parsed.empty?
@@ -206,30 +199,155 @@ def load_labels(path)
   end
 
   labels
-rescue Errno::ENOENT
-  raise "找不到标签配置文件：#{path}"
-rescue Psych::SyntaxError => error
-  raise "标签配置 YAML 无效：#{error.message}"
 end
 
-def managed_label?(name, alias_keys)
+def policy_string_list(container, key, path, allow_empty: false)
+  values = container[key]
+  raise "#{path} 的 #{key} 必须是数组。" unless values.is_a?(Array)
+
+  normalized = values.map { |value| value.to_s.strip }
+  raise "#{path} 的 #{key} 不能包含空值。" if normalized.any?(&:empty?)
+  raise "#{path} 的 #{key} 不能为空。" if !allow_empty && normalized.empty?
+
+  keys = normalized.map { |value| label_key(value) }
+  raise "#{path} 的 #{key} 包含重复值。" unless keys.uniq.length == keys.length
+
+  normalized
+end
+
+def load_policy(path)
+  parsed = load_yaml(path, "标签同步策略文件")
+  raise "#{path} 的 YAML 根节点必须是对象。" unless parsed.is_a?(Hash)
+
+  allowed_root = Set.new(%w[version managed repositories])
+  unknown_root = parsed.keys.map(&:to_s).to_set - allowed_root
+  raise "#{path} 包含未知根字段：#{unknown_root.to_a.sort.join(', ')}" unless unknown_root.empty?
+  raise "#{path} 的 version 必须是 1。" unless parsed["version"] == 1
+
+  managed = parsed["managed"]
+  repositories = parsed["repositories"]
+  raise "#{path} 的 managed 必须是对象。" unless managed.is_a?(Hash)
+  raise "#{path} 的 repositories 必须是对象。" unless repositories.is_a?(Hash)
+
+  allowed_managed = Set.new(%w[prefixes exact_names legacy_names])
+  unknown_managed = managed.keys.map(&:to_s).to_set - allowed_managed
+  raise "#{path} 的 managed 包含未知字段：#{unknown_managed.to_a.sort.join(', ')}" unless unknown_managed.empty?
+
+  allowed_repositories = Set.new(%w[include])
+  unknown_repositories = repositories.keys.map(&:to_s).to_set - allowed_repositories
+  unless unknown_repositories.empty?
+    raise "#{path} 的 repositories 包含未知字段：#{unknown_repositories.to_a.sort.join(', ')}"
+  end
+
+  prefixes = policy_string_list(managed, "prefixes", path)
+  exact_names = policy_string_list(managed, "exact_names", path, allow_empty: true)
+  legacy_names = policy_string_list(managed, "legacy_names", path, allow_empty: true)
+  repository_names = policy_string_list(repositories, "include", path)
+
+  invalid_prefix = prefixes.find { |prefix| !prefix.end_with?(":") }
+  raise "#{path} 的受管前缀必须以冒号结尾：#{invalid_prefix}" if invalid_prefix
+
+  invalid_repository = repository_names.find { |name| !name.match?(/\A[A-Za-z0-9._-]+\z/) }
+  raise "#{path} 包含无效仓库名称：#{invalid_repository}" if invalid_repository
+
+  exact_keys = exact_names.map { |name| label_key(name) }.to_set
+  legacy_keys = legacy_names.map { |name| label_key(name) }.to_set
+  overlap = exact_keys & legacy_keys
+  raise "#{path} 的 exact_names 与 legacy_names 不能重叠：#{overlap.to_a.sort.join(', ')}" unless overlap.empty?
+
+  {
+    prefixes: prefixes.map { |prefix| label_key(prefix) }.freeze,
+    exact_names: exact_keys.freeze,
+    legacy_names: legacy_keys.freeze,
+    repositories: repository_names.freeze
+  }.freeze
+end
+
+def desired_label_managed?(name, policy)
   key = label_key(name)
-  MANAGED_PREFIXES.any? { |prefix| key.start_with?(prefix) } ||
-    MANAGED_EXACT_NAMES.include?(key) ||
-    alias_keys.include?(key)
+  policy[:prefixes].any? { |prefix| key.start_with?(prefix) } || policy[:exact_names].include?(key)
+end
+
+def managed_label?(name, policy)
+  desired_label_managed?(name, policy) || policy[:legacy_names].include?(label_key(name))
+end
+
+def validate_label_policy!(labels, policy)
+  unmanaged = labels.reject { |label| desired_label_managed?(label["name"], policy) }.map { |label| label["name"] }
+  unless unmanaged.empty?
+    raise "标签配置包含不在组织受管范围内的正式标签：#{unmanaged.sort.join(', ')}"
+  end
+
+  aliases = labels.flat_map { |label| label["aliases"] }.map { |name| label_key(name) }.to_set
+  missing_legacy = aliases - policy[:legacy_names]
+  unless missing_legacy.empty?
+    raise "标签 aliases 必须同时登记到策略 legacy_names：#{missing_legacy.to_a.sort.join(', ')}"
+  end
+
+  desired = labels.map { |label| label_key(label["name"]) }.to_set
+  legacy_conflicts = desired & policy[:legacy_names]
+  unless legacy_conflicts.empty?
+    raise "策略 legacy_names 不能同时是正式标签：#{legacy_conflicts.to_a.sort.join(', ')}"
+  end
+end
+
+def normalize_requested_repository(owner, value)
+  return "" if value.empty?
+
+  parts = value.split("/", 2)
+  if parts.length == 2
+    requested_owner, repository = parts
+    unless requested_owner.casecmp(owner).zero?
+      raise "指定仓库不属于 #{owner} 组织：#{value}"
+    end
+    return repository
+  end
+
+  value
+end
+
+def load_repositories(api, owner, policy, only_repository)
+  names = policy[:repositories]
+  requested = normalize_requested_repository(owner, only_repository)
+
+  unless requested.empty?
+    selected = names.find { |name| name.casecmp(requested).zero? }
+    raise "仓库 #{owner}/#{requested} 不在标签同步 Allowlist 中。" unless selected
+
+    names = [selected]
+  end
+
+  names.map do |name|
+    repository = api.get("/repos/#{escape_segment(owner)}/#{escape_segment(name)}")
+    raise "GitHub API 未返回仓库对象：#{owner}/#{name}" unless repository.is_a?(Hash)
+
+    full_name = repository["full_name"].to_s
+    unless full_name.casecmp("#{owner}/#{name}").zero?
+      raise "Allowlist 仓库解析不一致：期望 #{owner}/#{name}，实际 #{full_name.inspect}"
+    end
+
+    unsupported_states = []
+    unsupported_states << "archived" if repository["archived"]
+    unsupported_states << "disabled" if repository["disabled"]
+    unsupported_states << "fork" if repository["fork"]
+    unless unsupported_states.empty?
+      raise "Allowlist 仓库 #{full_name} 处于不可同步状态：#{unsupported_states.join(', ')}。请先更新策略。"
+    end
+
+    repository
+  end
 end
 
 def mutate(api, dry_run, method, *arguments)
   api.public_send(method, *arguments) unless dry_run
 end
 
-def sync_repository(api, full_name, desired_labels, dry_run:)
+def sync_repository(api, full_name, desired_labels, policy:, dry_run:)
   path = repository_path(full_name)
   existing = api.paginate("/repos/#{path}/labels")
   labels_by_name = existing.to_h { |label| [label_key(label["name"]), label] }
 
   desired_keys = desired_labels.map { |label| label_key(label["name"]) }.to_set
-  alias_keys = desired_labels.flat_map { |label| label["aliases"] }.map { |name| label_key(name) }.to_set
 
   counts = {
     created: 0,
@@ -329,9 +447,7 @@ def sync_repository(api, full_name, desired_labels, dry_run:)
   end
 
   remaining = labels_by_name.values.reject { |label| desired_keys.include?(label_key(label["name"])) }
-  stale_managed, repository_specific = remaining.partition do |label|
-    managed_label?(label["name"], alias_keys)
-  end
+  stale_managed, repository_specific = remaining.partition { |label| managed_label?(label["name"], policy) }
 
   stale_managed.sort_by { |label| label["name"].downcase }.each do |label|
     name = label.fetch("name")
@@ -360,9 +476,10 @@ def write_summary(results, failures)
     summary.puts "# 标签同步结果"
     summary.puts
     summary.puts "- 组织：`#{OWNER}`"
-    summary.puts "- 配置：`#{CONFIG_FILE}`"
+    summary.puts "- 标签配置：`#{CONFIG_FILE}`"
+    summary.puts "- 同步策略：`#{POLICY_FILE}`"
     summary.puts "- Dry Run：`#{DRY_RUN}`"
-    summary.puts "- 模式：组织级标签受管子集"
+    summary.puts "- 模式：组织级受管标签 + 仓库 Allowlist"
     summary.puts
     summary.puts "| 仓库 | 状态 | 新建 | 更新 | 重命名 | 删除 | 未变化 | 保留扩展 |"
     summary.puts "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
@@ -392,23 +509,15 @@ def run
   raise "SYNC_LABELS_OWNER 不能为空。" if OWNER.empty?
 
   desired_labels = load_labels(CONFIG_FILE)
-  api = GitHubApi.new(token: TOKEN, base_url: API_URL)
-  repositories = api.paginate(
-    "/orgs/#{escape_segment(OWNER)}/repos?type=all&sort=full_name&direction=asc"
-  ).select do |repository|
-    !repository["archived"] && !repository["disabled"] && !repository["fork"]
-  end
+  policy = load_policy(POLICY_FILE)
+  validate_label_policy!(desired_labels, policy)
 
-  unless ONLY_REPOSITORY.empty?
-    expected = ONLY_REPOSITORY.include?("/") ? ONLY_REPOSITORY : "#{OWNER}/#{ONLY_REPOSITORY}"
-    repositories.select! { |repository| repository["full_name"].casecmp(expected).zero? }
-    if repositories.empty?
-      raise "找不到可同步仓库 #{expected}。请检查名称、令牌访问范围和仓库状态。"
-    end
-  end
+  api = GitHubApi.new(token: TOKEN, base_url: API_URL)
+  repositories = load_repositories(api, OWNER, policy, ONLY_REPOSITORY)
 
   puts "Owner: #{OWNER}"
   puts "Config: #{CONFIG_FILE}"
+  puts "Policy: #{POLICY_FILE}"
   puts "Dry run: #{DRY_RUN}"
   puts "Repositories: #{repositories.length}"
   puts
@@ -420,7 +529,7 @@ def run
     full_name = repository.fetch("full_name")
 
     begin
-      counts = sync_repository(api, full_name, desired_labels, dry_run: DRY_RUN)
+      counts = sync_repository(api, full_name, desired_labels, policy: policy, dry_run: DRY_RUN)
       results << {
         repository: full_name,
         status: DRY_RUN ? "预览完成" : "同步完成",
