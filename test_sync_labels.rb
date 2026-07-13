@@ -85,7 +85,7 @@ class SyncLabelsTest < Minitest::Test
     assert_equal 1, counts[:unchanged]
     assert_equal 3, counts[:preserved]
 
-    deleted_paths = api.calls.filter_map { |call| call[1] if call.first == :delete }
+    deleted_paths = api.calls.map { |call| call[1] if call.first == :delete }.compact
     assert_includes deleted_paths, "/repos/matharts/example/labels/enhancement"
     assert_includes deleted_paths, "/repos/matharts/example/labels/type%3A%20obsolete"
     refute deleted_paths.any? { |path| path.include?("area%3A%20ephemeris") }
@@ -162,6 +162,6 @@ class SyncLabelsTest < Minitest::Test
     policy = load_policy(File.join(root, ".github/label-policy.yml"))
 
     validate_label_policy!(labels, policy)
-    assert_equal %w[.github ecosystem epheon matharts skills ziwei], policy[:repositories]
+    assert_equal %w[.github epheon matharts skills ziwei], policy[:repositories]
   end
 end

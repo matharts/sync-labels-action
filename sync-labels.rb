@@ -364,7 +364,7 @@ def sync_repository(api, full_name, desired_labels, policy:, dry_run:)
     desired_name = desired["name"]
     desired_key = label_key(desired_name)
     current = labels_by_name[desired_key]
-    alias_matches = desired["aliases"].filter_map { |alias_name| labels_by_name[label_key(alias_name)] }
+    alias_matches = desired["aliases"].map { |alias_name| labels_by_name[label_key(alias_name)] }.compact
       .uniq { |label| label_key(label["name"]) }
 
     if current
