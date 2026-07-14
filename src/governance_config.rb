@@ -124,15 +124,15 @@ module SyncLabels
       exact_names = policy_string_list(managed, "exact_names", path, allow_empty: true)
       legacy_names = policy_string_list(managed, "legacy_names", path, allow_empty: true)
       repository_names = if repositories.key?("include")
-        policy_string_list(repositories, "include", path, allow_empty: true)
+        policy_string_list(repositories, "include", path)
       else
-        []
+        nil
       end
 
       invalid_prefix = prefixes.find { |prefix| !prefix.end_with?(":") }
       raise "#{path} 的受管前缀必须以冒号结尾：#{invalid_prefix}" if invalid_prefix
 
-      invalid_repository = repository_names.find { |name| !name.match?(/\A[A-Za-z0-9._-]+\z/) }
+      invalid_repository = repository_names&.find { |name| !name.match?(/\A[A-Za-z0-9._-]+\z/) }
       raise "#{path} 包含无效仓库名称：#{invalid_repository}" if invalid_repository
 
       exact_keys = exact_names.map { |name| LabelIdentity.key(name) }.to_set
@@ -144,7 +144,7 @@ module SyncLabels
         prefixes: prefixes.map { |prefix| LabelIdentity.key(prefix) }.freeze,
         exact_names: exact_keys.freeze,
         legacy_names: legacy_keys.freeze,
-        repositories: repository_names.freeze
+        repositories: repository_names&.freeze
       }.freeze
     end
 
@@ -241,13 +241,13 @@ module SyncLabels
     end
 
     def load_repositories(api, owner, policy, only_repository)
-      names = policy.fetch(:repositories, [])
+      names = policy[:repositories]
       requested = normalize_requested_repository(owner, only_repository)
 
-      return load_all_repositories(api, owner) if names.empty? && requested.empty?
+      return load_all_repositories(api, owner) if names.nil? && requested.empty?
 
       unless requested.empty?
-        if names.empty?
+        if names.nil?
           return [load_named_repository(api, owner, requested, allowlisted: false)]
         end
 
@@ -288,7 +288,11 @@ module SyncLabels
     end
 
     def repository_names
-      @policy.fetch(:repositories, [])
+      @policy[:repositories]
+    end
+
+    def all_repositories?
+      @policy[:repositories].nil?
     end
   end
 

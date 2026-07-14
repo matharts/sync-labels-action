@@ -141,7 +141,7 @@ ready
 
 ## 12. 跨仓库同步
 
-同步采用显式 Allowlist，不会自动处理新仓库。
+MathArts 的生产配置采用显式 Allowlist，不会自动处理新仓库。同步 Action 也支持省略 `repositories.include`，此时令牌可见的新建合格仓库会自动进入范围；生产配置不使用这一默认模式。
 
 - [`preview-labels.yml`](../.github/workflows/preview-labels.yml) 使用只读权限预览差异
 - [`sync-labels.yml`](../.github/workflows/sync-labels.yml) 只能从 `main` 手动触发真实修改

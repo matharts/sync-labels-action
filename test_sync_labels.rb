@@ -454,7 +454,7 @@ class SyncLabelsTest < Minitest::Test
   end
 
   def test_loads_all_eligible_organization_repositories_without_an_allowlist
-    policy = POLICY.merge(repositories: [].freeze)
+    policy = POLICY.reject { |key, _value| key == :repositories }
     api = FakeApi.new(
       organization_repositories: [
         { "full_name" => "matharts/active", "archived" => false, "disabled" => false, "fork" => false },
@@ -473,7 +473,7 @@ class SyncLabelsTest < Minitest::Test
   end
 
   def test_selects_one_repository_when_the_allowlist_is_omitted
-    policy = POLICY.merge(repositories: [].freeze)
+    policy = POLICY.reject { |key, _value| key == :repositories }
     api = FakeApi.new(
       repositories: {
         "/repos/matharts/example" => {
@@ -541,14 +541,16 @@ class SyncLabelsTest < Minitest::Test
     repositories = config.repositories(api: api, owner: "matharts")
 
     assert_equal ["matharts/example"], repositories.map { |repository| repository["full_name"] }
-    assert_empty config.repository_names
+    assert config.all_repositories?
+    assert_nil config.repository_names
   end
 
-  def test_configuration_treats_an_empty_include_as_all_repositories
+  def test_configuration_rejects_an_empty_repository_include
     document = policy_document.merge("repositories" => { "include" => [] })
-    config = load_governance_config(document)
 
-    assert_empty config.repository_names
+    error = assert_raises(RuntimeError) { load_governance_config(document) }
+
+    assert_includes error.message, "include 不能为空"
   end
 
   def test_configuration_rejects_unknown_label_fields
