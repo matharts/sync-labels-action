@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "tmpdir"
 require_relative "sync-labels"
 
 class FakeApi
@@ -156,12 +157,30 @@ class SyncLabelsTest < Minitest::Test
     assert_includes error.message, "enhancement"
   end
 
-  def test_repository_policy_matches_current_configuration
-    root = File.expand_path("../../..", __dir__)
-    labels = load_labels(File.join(root, ".github/labels.yml"))
-    policy = load_policy(File.join(root, ".github/label-policy.yml"))
+  def test_loads_a_valid_self_contained_configuration
+    Dir.mktmpdir do |directory|
+      labels_path = File.join(directory, "labels.yml")
+      policy_path = File.join(directory, "label-policy.yml")
 
-    validate_label_policy!(labels, policy)
-    assert_equal %w[.github epheon matharts skills ziwei], policy[:repositories]
+      File.write(labels_path, YAML.dump(DESIRED))
+      File.write(
+        policy_path,
+        YAML.dump(
+          "version" => 1,
+          "managed" => {
+            "prefixes" => ["type:"],
+            "exact_names" => ["help wanted"],
+            "legacy_names" => %w[bug enhancement]
+          },
+          "repositories" => { "include" => %w[example docs] }
+        )
+      )
+
+      labels = load_labels(labels_path)
+      policy = load_policy(policy_path)
+
+      validate_label_policy!(labels, policy)
+      assert_equal %w[example docs], policy[:repositories]
+    end
   end
 end
