@@ -93,7 +93,14 @@ class SyncLabelsTest < Minitest::Test
     synchronizer.define_singleton_method(:sync) do |full_name|
       raise "simulated failure" if full_name.end_with?("failing")
 
-      { created: 1, updated: 0, renamed: 0, deleted: 0, unchanged: 0, preserved: 0 }
+      SyncLabels::SyncResult.new(
+        created: 1,
+        updated: 0,
+        renamed: 0,
+        deleted: 0,
+        unchanged: 0,
+        preserved: 0
+      )
     end
     output = StringIO.new
     application = SyncLabels::Application.new(
@@ -107,7 +114,7 @@ class SyncLabelsTest < Minitest::Test
 
     refute result.success?
     assert_equal ["matharts/failing"], result.failures.map { |failure| failure[:repository] }
-    assert_equal %w[matharts/failing matharts/healthy], result.results.map { |entry| entry[:repository] }
+    assert_equal %w[matharts/failing matharts/healthy], result.results.map(&:repository)
     assert_includes output.string, "matharts/failing"
     assert_includes output.string, "simulated failure"
   end
@@ -117,16 +124,11 @@ class SyncLabelsTest < Minitest::Test
       path = File.join(directory, "summary.md")
       result = SyncLabels::RunResult.new(
         results: [
-          {
+          SyncLabels::RepositoryOutcome.new(
             repository: "matharts/example",
             status: "失败",
-            created: 0,
-            updated: 0,
-            renamed: 0,
-            deleted: 0,
-            unchanged: 0,
-            preserved: 0
-          }
+            counts: SyncLabels::SyncResult.zero
+          )
         ],
         failures: [{ repository: "matharts/example", error: "bad | input\nsecond line" }]
       )

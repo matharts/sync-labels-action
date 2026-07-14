@@ -15,7 +15,7 @@ on:
       - ".github/label-policy.yml"
       - "action.yml"
       - "sync-labels.rb"
-      - "lib/**"
+      - "src/**"
       - ".github/workflows/preview-labels.yml"
       - ".github/workflows/sync-labels.yml"
 
@@ -27,7 +27,7 @@ on:
       - ".github/label-policy.yml"
       - "action.yml"
       - "sync-labels.rb"
-      - "lib/**"
+      - "src/**"
       - ".github/workflows/preview-labels.yml"
       - ".github/workflows/sync-labels.yml"
 

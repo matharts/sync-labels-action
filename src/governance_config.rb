@@ -1,30 +1,13 @@
 # frozen_string_literal: true
 
 require "set"
-require "uri"
 require "yaml"
+require_relative "label_identity"
 
 module SyncLabels
   module GovernanceInternals
     module_function
 
-    def label_key(value)
-      value.to_s.unicode_normalize(:nfc).downcase
-    rescue StandardError
-      value.to_s.downcase
-    end
-    
-    def escape_segment(value)
-      URI.encode_www_form_component(value.to_s).gsub("+", "%20")
-    end
-    
-    def repository_path(full_name)
-      owner, repository = full_name.split("/", 2)
-      raise "无效仓库名称：#{full_name.inspect}" if owner.to_s.empty? || repository.to_s.empty?
-    
-      "#{escape_segment(owner)}/#{escape_segment(repository)}"
-    end
-    
     def load_yaml(path, description)
       YAML.safe_load(
         File.read(path, encoding: "UTF-8"),
@@ -73,18 +56,18 @@ module SyncLabels
         }
       end
     
-      desired_names = labels.map { |label| label_key(label["name"]) }
+      desired_names = labels.map { |label| LabelIdentity.key(label["name"]) }
       raise "#{path} 包含重复标签名称。" unless desired_names.uniq.length == desired_names.length
     
       desired_set = desired_names.to_set
       alias_owners = {}
     
       labels.each do |label|
-        normalized_aliases = label["aliases"].map { |name| label_key(name) }
+        normalized_aliases = label["aliases"].map { |name| LabelIdentity.key(name) }
         raise "#{label['name']} 包含重复 aliases。" unless normalized_aliases.uniq.length == normalized_aliases.length
     
         label["aliases"].each do |alias_name|
-          alias_key = label_key(alias_name)
+          alias_key = LabelIdentity.key(alias_name)
           if desired_set.include?(alias_key)
             raise "#{label['name']} 的 alias #{alias_name.inspect} 同时是正式标签名称。"
           end
@@ -107,7 +90,7 @@ module SyncLabels
       raise "#{path} 的 #{key} 不能包含空值。" if normalized.any?(&:empty?)
       raise "#{path} 的 #{key} 不能为空。" if !allow_empty && normalized.empty?
     
-      keys = normalized.map { |value| label_key(value) }
+      keys = normalized.map { |value| LabelIdentity.key(value) }
       raise "#{path} 的 #{key} 包含重复值。" unless keys.uniq.length == keys.length
     
       normalized
@@ -148,13 +131,13 @@ module SyncLabels
       invalid_repository = repository_names.find { |name| !name.match?(/\A[A-Za-z0-9._-]+\z/) }
       raise "#{path} 包含无效仓库名称：#{invalid_repository}" if invalid_repository
     
-      exact_keys = exact_names.map { |name| label_key(name) }.to_set
-      legacy_keys = legacy_names.map { |name| label_key(name) }.to_set
+      exact_keys = exact_names.map { |name| LabelIdentity.key(name) }.to_set
+      legacy_keys = legacy_names.map { |name| LabelIdentity.key(name) }.to_set
       overlap = exact_keys & legacy_keys
       raise "#{path} 的 exact_names 与 legacy_names 不能重叠：#{overlap.to_a.sort.join(', ')}" unless overlap.empty?
     
       {
-        prefixes: prefixes.map { |prefix| label_key(prefix) }.freeze,
+        prefixes: prefixes.map { |prefix| LabelIdentity.key(prefix) }.freeze,
         exact_names: exact_keys.freeze,
         legacy_names: legacy_keys.freeze,
         repositories: repository_names.freeze
@@ -162,12 +145,12 @@ module SyncLabels
     end
     
     def desired_label_managed?(name, policy)
-      key = label_key(name)
+      key = LabelIdentity.key(name)
       policy[:prefixes].any? { |prefix| key.start_with?(prefix) } || policy[:exact_names].include?(key)
     end
     
     def managed_label?(name, policy)
-      desired_label_managed?(name, policy) || policy[:legacy_names].include?(label_key(name))
+      desired_label_managed?(name, policy) || policy[:legacy_names].include?(LabelIdentity.key(name))
     end
     
     def validate_label_policy!(labels, policy)
@@ -176,13 +159,13 @@ module SyncLabels
         raise "标签配置包含不在组织受管范围内的正式标签：#{unmanaged.sort.join(', ')}"
       end
     
-      aliases = labels.flat_map { |label| label["aliases"] }.map { |name| label_key(name) }.to_set
+      aliases = labels.flat_map { |label| label["aliases"] }.map { |name| LabelIdentity.key(name) }.to_set
       missing_legacy = aliases - policy[:legacy_names]
       unless missing_legacy.empty?
         raise "标签 aliases 必须同时登记到策略 legacy_names：#{missing_legacy.to_a.sort.join(', ')}"
       end
     
-      desired = labels.map { |label| label_key(label["name"]) }.to_set
+      desired = labels.map { |label| LabelIdentity.key(label["name"]) }.to_set
       legacy_conflicts = desired & policy[:legacy_names]
       unless legacy_conflicts.empty?
         raise "策略 legacy_names 不能同时是正式标签：#{legacy_conflicts.to_a.sort.join(', ')}"
@@ -216,7 +199,7 @@ module SyncLabels
       end
     
       names.map do |name|
-        repository = api.get("/repos/#{escape_segment(owner)}/#{escape_segment(name)}")
+        repository = api.get("/repos/#{LabelIdentity.escape(owner)}/#{LabelIdentity.escape(name)}")
         raise "GitHub API 未返回仓库对象：#{owner}/#{name}" unless repository.is_a?(Hash)
     
         full_name = repository["full_name"].to_s

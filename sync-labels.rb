@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative "lib/application"
-require_relative "lib/github_api"
-require_relative "lib/governance_config"
-require_relative "lib/repository_synchronizer"
-require_relative "lib/summary_writer"
+require_relative "src/application"
+require_relative "src/github_api"
+require_relative "src/governance_config"
+require_relative "src/repository_synchronizer"
+require_relative "src/summary_writer"
 
 TOKEN = ENV.fetch("SYNC_LABELS_TOKEN", "")
 OWNER = ENV.fetch("SYNC_LABELS_OWNER", "")

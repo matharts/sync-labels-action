@@ -94,7 +94,7 @@ repositories:
 
 ## 开发
 
-核心代码按深模块组织：
+核心代码位于 `src/`，按深模块组织：
 
 - `GovernanceConfig.load(...)` 隐藏 YAML、标签/策略校验和仓库选择
 - `RepositorySynchronizer#sync(...)` 负责单仓库差异计算与变更

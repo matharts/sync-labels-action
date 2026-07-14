@@ -38,10 +38,11 @@ module SyncLabels
       summary.puts "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
 
       results.each do |result|
+        counts = result.counts
         summary.puts(
-          "| `#{result[:repository]}` | #{result[:status]} | #{result[:created]} | " \
-          "#{result[:updated]} | #{result[:renamed]} | #{result[:deleted]} | " \
-          "#{result[:unchanged]} | #{result[:preserved]} |"
+          "| `#{result.repository}` | #{result.status} | #{counts.created} | " \
+          "#{counts.updated} | #{counts.renamed} | #{counts.deleted} | " \
+          "#{counts.unchanged} | #{counts.preserved} |"
         )
       end
     end
