@@ -118,6 +118,65 @@ class SyncLabelsTest < Minitest::Test
     assert_empty responses
   end
 
+  def test_github_api_retries_too_many_requests
+    responses = [
+      FakeResponse.new("429", '{"message":"slow down"}', { "retry-after" => "0" }),
+      FakeResponse.new("200", "[]", {})
+    ]
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: ->(_uri, _request) { responses.shift },
+      sleeper: ->(_delay) {},
+      max_retries: 1
+    )
+
+    assert_equal [], api.get("/items")
+    assert_empty responses
+  end
+
+  def test_github_api_does_not_treat_reset_metadata_as_rate_limit
+    attempts = 0
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: lambda do |_uri, _request|
+        attempts += 1
+        FakeResponse.new(
+          "403",
+          '{"message":"resource not accessible"}',
+          { "x-ratelimit-remaining" => "4999", "x-ratelimit-reset" => "4102444800" }
+        )
+      end,
+      sleeper: ->(_delay) { flunk "ordinary 403 must not be retried" }
+    )
+
+    error = assert_raises(RuntimeError) { api.get("/status") }
+    assert_includes error.message, "Status: 403"
+    assert_equal 1, attempts
+  end
+
+  def test_github_api_paginates_until_a_short_page
+    paths = []
+    pages = [[*1..100], [101]]
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: lambda do |_uri, request|
+        paths << request.path
+        FakeResponse.new("200", JSON.generate(pages.shift), {})
+      end,
+      sleeper: ->(_delay) {}
+    )
+
+    assert_equal [*1..101], api.paginate("/items?state=open")
+    assert_equal [
+      "/items?state=open&per_page=100&page=1",
+      "/items?state=open&per_page=100&page=2"
+    ], paths
+    assert_empty pages
+  end
+
   def test_github_api_retries_network_errors_for_get_requests
     attempts = 0
     api = GitHubApi.new(

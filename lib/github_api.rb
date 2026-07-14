@@ -163,8 +163,7 @@ class GitHubApi
 
     status == 403 && (
       !response["retry-after"].to_s.empty? ||
-      response["x-ratelimit-remaining"].to_s == "0" ||
-      !response["x-ratelimit-reset"].to_s.empty?
+      response["x-ratelimit-remaining"].to_s == "0"
     )
   end
 
