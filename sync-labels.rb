@@ -16,9 +16,38 @@ API_URL = ENV.fetch("SYNC_LABELS_API_URL", "https://api.github.com").sub(%r{/\z}
 DRY_RUN = %w[1 true yes on].include?(ENV.fetch("SYNC_LABELS_DRY_RUN", "true").downcase)
 
 class GitHubApi
-  def initialize(token:, base_url:)
+  DEFAULT_MAX_RETRIES = 3
+  MAX_RETRY_DELAY = 60
+  TRANSIENT_ERRORS = [
+    EOFError,
+    Errno::ECONNRESET,
+    Errno::ETIMEDOUT,
+    Net::OpenTimeout,
+    Net::ReadTimeout,
+    SocketError
+  ].freeze
+
+  def initialize(
+    token:,
+    base_url:,
+    requester: nil,
+    sleeper: ->(delay) { sleep(delay) },
+    max_retries: DEFAULT_MAX_RETRIES
+  )
+    base_uri = URI.parse(base_url)
+    unless base_uri.is_a?(URI::HTTPS) && base_uri.host && !base_uri.host.empty?
+      raise ArgumentError, "GitHub API 地址必须是有效的 HTTPS URL。"
+    end
+    if base_uri.userinfo || base_uri.query || base_uri.fragment
+      raise ArgumentError, "GitHub API 地址不能包含凭据、查询参数或片段。"
+    end
+
     @token = token
-    @base_url = base_url
+    @base_url = base_url.sub(%r{/\z}, "")
+    @requester = requester || method(:perform_request)
+    @sleeper = sleeper
+    @max_retries = Integer(max_retries)
+    raise ArgumentError, "max_retries 不能小于 0。" if @max_retries.negative?
   end
 
   def get(path)
@@ -70,15 +99,7 @@ class GitHubApi
       request.body = JSON.generate(body)
     end
 
-    response = Net::HTTP.start(
-      uri.hostname,
-      uri.port,
-      use_ssl: uri.scheme == "https",
-      open_timeout: 15,
-      read_timeout: 60
-    ) do |http|
-      http.request(request)
-    end
+    response = request_with_retries(uri, request)
 
     unless response.code.to_i.between?(200, 299)
       message = begin
@@ -107,6 +128,64 @@ class GitHubApi
     return nil if response.body.nil? || response.body.empty?
 
     JSON.parse(response.body)
+  end
+
+  def perform_request(uri, request)
+    Net::HTTP.start(
+      uri.hostname,
+      uri.port,
+      use_ssl: uri.scheme == "https",
+      open_timeout: 15,
+      read_timeout: 60
+    ) do |http|
+      http.request(request)
+    end
+  end
+
+  def request_with_retries(uri, request)
+    attempt = 0
+
+    loop do
+      begin
+        response = @requester.call(uri, request)
+      rescue *TRANSIENT_ERRORS => error
+        raise if attempt >= @max_retries
+
+        delay = [2**attempt, MAX_RETRY_DELAY].min
+        warn "GitHub API 网络错误，#{delay} 秒后重试（#{attempt + 1}/#{@max_retries}）：#{error.class}"
+        @sleeper.call(delay)
+        attempt += 1
+        next
+      end
+
+      return response unless retryable_response?(response) && attempt < @max_retries
+
+      delay = retry_delay(response, attempt)
+      warn "GitHub API 返回 #{response.code}，#{delay} 秒后重试（#{attempt + 1}/#{@max_retries}）。"
+      @sleeper.call(delay)
+      attempt += 1
+    end
+  end
+
+  def retryable_response?(response)
+    status = response.code.to_i
+    return true if status == 429 || status.between?(500, 599)
+
+    status == 403 && (
+      !response["retry-after"].to_s.empty? || response["x-ratelimit-remaining"].to_s == "0"
+    )
+  end
+
+  def retry_delay(response, attempt)
+    retry_after = response["retry-after"].to_s
+    return [retry_after.to_i, MAX_RETRY_DELAY].min if retry_after.match?(/\A\d+\z/)
+
+    reset_at = response["x-ratelimit-reset"].to_s
+    if reset_at.match?(/\A\d+\z/)
+      return [[reset_at.to_i - Time.now.to_i, 0].max, MAX_RETRY_DELAY].min
+    end
+
+    [2**attempt, MAX_RETRY_DELAY].min
   end
 end
 

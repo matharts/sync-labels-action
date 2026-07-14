@@ -35,6 +35,12 @@ class FakeApi
   end
 end
 
+FakeResponse = Struct.new(:code, :body, :headers) do
+  def [](name)
+    headers.fetch(name.downcase, "")
+  end
+end
+
 class SyncLabelsTest < Minitest::Test
   DESIRED = [
     {
@@ -63,6 +69,54 @@ class SyncLabelsTest < Minitest::Test
     legacy_names: Set.new(%w[bug enhancement]).freeze,
     repositories: %w[example docs].freeze
   }.freeze
+
+  def test_github_api_requires_https
+    error = assert_raises(ArgumentError) do
+      GitHubApi.new(token: "token", base_url: "http://api.example.test")
+    end
+
+    assert_includes error.message, "HTTPS"
+  end
+
+  def test_github_api_retries_transient_server_errors
+    responses = [
+      FakeResponse.new("503", '{"message":"temporarily unavailable"}', { "retry-after" => "0" }),
+      FakeResponse.new("200", '{"ok":true}', {})
+    ]
+    delays = []
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: ->(_uri, _request) { responses.shift },
+      sleeper: ->(delay) { delays << delay },
+      max_retries: 2
+    )
+
+    assert_equal({ "ok" => true }, api.get("/status"))
+    assert_equal [0], delays
+    assert_empty responses
+  end
+
+  def test_github_api_retries_rate_limit_responses
+    responses = [
+      FakeResponse.new(
+        "403",
+        '{"message":"rate limit exceeded"}',
+        { "retry-after" => "0", "x-ratelimit-remaining" => "0" }
+      ),
+      FakeResponse.new("200", "[]", {})
+    ]
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: ->(_uri, _request) { responses.shift },
+      sleeper: ->(_delay) {},
+      max_retries: 1
+    )
+
+    assert_equal [], api.get("/items")
+    assert_empty responses
+  end
 
   def test_preserves_repository_specific_labels_and_removes_stale_managed_labels
     api = FakeApi.new(

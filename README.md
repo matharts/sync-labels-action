@@ -9,6 +9,8 @@
 - 创建、更新、重命名和删除组织受管标签
 - 保留不在组织受管范围内的仓库标签
 - 默认使用 dry-run，仅预览而不修改
+- 对 GitHub 限流、瞬时服务错误和网络错误进行有限重试
+- 只允许通过 HTTPS 连接 GitHub API
 - 将每个仓库的同步结果写入 GitHub Actions job summary
 
 运行环境只需要 GitHub-hosted runner 自带的 Ruby，无第三方运行时依赖。
@@ -52,7 +54,7 @@
 | `policy_file` | 否 | `.github/label-policy.yml` | 标签所有权与仓库 Allowlist 策略路径 |
 | `dry_run` | 否 | `true` | 仅预览变更 |
 | `repository` | 否 | 空 | 只处理 Allowlist 中的一个仓库；可用仓库名或 `owner/repository` |
-| `api_url` | 否 | `https://api.github.com` | GitHub REST API 地址 |
+| `api_url` | 否 | `https://api.github.com` | 可信 GitHub 或 GitHub Enterprise Server 的 HTTPS REST API 地址 |
 
 ## 标签配置
 
@@ -94,4 +96,7 @@ repositories:
 
 ```bash
 ruby test_sync_labels.rb
+ruby script/validate-action-pins.rb
 ```
+
+CI 会在 Ruby 3.1、3.3 和 3.4 上运行测试，并使用 Actionlint 校验所有工作流。生产调用建议固定到完整提交 SHA；版本标签用于发布说明和人工发现，不替代不可变 SHA 校验。

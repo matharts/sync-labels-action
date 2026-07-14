@@ -1,5 +1,10 @@
 name: "MathArts Sync Labels"
 description: "按组织策略同步受管标签，同时保留仓库自行维护的扩展标签"
+author: "MathArts"
+
+branding:
+  icon: "tag"
+  color: "purple"
 
 inputs:
   token:
@@ -31,7 +36,7 @@ inputs:
     default: ""
 
   api_url:
-    description: "GitHub REST API 地址"
+    description: "GitHub REST API HTTPS 地址；可用于可信的 GitHub Enterprise Server"
     required: false
     default: "https://api.github.com"
 
