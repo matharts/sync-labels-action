@@ -21,7 +21,7 @@ inputs:
     default: ".github/labels.yml"
 
   policy_file:
-    description: "标签所有权和仓库 Allowlist 策略文件路径"
+    description: "标签所有权和仓库范围策略文件路径"
     required: false
     default: ".github/label-policy.yml"
 
@@ -31,7 +31,7 @@ inputs:
     default: "true"
 
   repository:
-    description: "只同步 Allowlist 中的指定仓库；留空时同步全部 Allowlist 仓库"
+    description: "只同步指定仓库；留空时按 include 选择，未配置 include 则同步全部合格仓库"
     required: false
     default: ""
 

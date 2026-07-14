@@ -106,7 +106,7 @@ module SyncLabels
       raise "#{path} 的 version 必须是 1。" unless parsed["version"] == 1
 
       managed = parsed["managed"]
-      repositories = parsed["repositories"]
+      repositories = parsed.fetch("repositories", {})
       raise "#{path} 的 managed 必须是对象。" unless managed.is_a?(Hash)
       raise "#{path} 的 repositories 必须是对象。" unless repositories.is_a?(Hash)
 
@@ -123,7 +123,11 @@ module SyncLabels
       prefixes = policy_string_list(managed, "prefixes", path)
       exact_names = policy_string_list(managed, "exact_names", path, allow_empty: true)
       legacy_names = policy_string_list(managed, "legacy_names", path, allow_empty: true)
-      repository_names = policy_string_list(repositories, "include", path)
+      repository_names = if repositories.key?("include")
+        policy_string_list(repositories, "include", path, allow_empty: true)
+      else
+        []
+      end
 
       invalid_prefix = prefixes.find { |prefix| !prefix.end_with?(":") }
       raise "#{path} 的受管前缀必须以冒号结尾：#{invalid_prefix}" if invalid_prefix
@@ -181,42 +185,78 @@ module SyncLabels
         unless requested_owner.casecmp(owner).zero?
           raise "指定仓库不属于 #{owner} 组织：#{value}"
         end
-        return repository
+        value = repository
+      end
+
+      unless value.match?(/\A[A-Za-z0-9._-]+\z/)
+        raise "指定仓库名称无效：#{value.inspect}"
       end
 
       value
     end
 
+    def repository_full_name(repository, owner, expected_name: nil)
+      description = expected_name ? "#{owner}/#{expected_name}" : "#{owner} 组织仓库"
+      raise "GitHub API 未返回仓库对象：#{description}" unless repository.is_a?(Hash)
+
+      full_name = repository["full_name"].to_s
+      expected = expected_name ? "#{owner}/#{expected_name}" : "#{owner}/"
+      matches = if expected_name
+        full_name.casecmp(expected).zero?
+      else
+        repository_owner, repository_name = full_name.split("/", 2)
+        repository_owner&.casecmp(owner)&.zero? && repository_name&.match?(/\A[A-Za-z0-9._-]+\z/)
+      end
+      raise "仓库解析不一致：期望 #{expected_name ? expected : "#{owner}/*"}，实际 #{full_name.inspect}" unless matches
+
+      full_name
+    end
+
+    def unsupported_repository_states(repository)
+      states = []
+      states << "archived" if repository["archived"]
+      states << "disabled" if repository["disabled"]
+      states << "fork" if repository["fork"]
+      states
+    end
+
+    def load_named_repository(api, owner, name, allowlisted:)
+      repository = api.get("/repos/#{LabelIdentity.escape(owner)}/#{LabelIdentity.escape(name)}")
+      full_name = repository_full_name(repository, owner, expected_name: name)
+      unsupported_states = unsupported_repository_states(repository)
+      unless unsupported_states.empty?
+        scope = allowlisted ? "Allowlist 仓库" : "仓库"
+        raise "#{scope} #{full_name} 处于不可同步状态：#{unsupported_states.join(', ')}。请更新策略或选择其他仓库。"
+      end
+
+      repository
+    end
+
+    def load_all_repositories(api, owner)
+      path = "/orgs/#{LabelIdentity.escape(owner)}/repos?type=all&sort=full_name&direction=asc"
+      api.paginate(path).select do |repository|
+        repository_full_name(repository, owner)
+        unsupported_repository_states(repository).empty?
+      end
+    end
+
     def load_repositories(api, owner, policy, only_repository)
-      names = policy[:repositories]
+      names = policy.fetch(:repositories, [])
       requested = normalize_requested_repository(owner, only_repository)
 
+      return load_all_repositories(api, owner) if names.empty? && requested.empty?
+
       unless requested.empty?
+        if names.empty?
+          return [load_named_repository(api, owner, requested, allowlisted: false)]
+        end
+
         selected = names.find { |name| name.casecmp(requested).zero? }
         raise "仓库 #{owner}/#{requested} 不在标签同步 Allowlist 中。" unless selected
-
         names = [selected]
       end
 
-      names.map do |name|
-        repository = api.get("/repos/#{LabelIdentity.escape(owner)}/#{LabelIdentity.escape(name)}")
-        raise "GitHub API 未返回仓库对象：#{owner}/#{name}" unless repository.is_a?(Hash)
-
-        full_name = repository["full_name"].to_s
-        unless full_name.casecmp("#{owner}/#{name}").zero?
-          raise "Allowlist 仓库解析不一致：期望 #{owner}/#{name}，实际 #{full_name.inspect}"
-        end
-
-        unsupported_states = []
-        unsupported_states << "archived" if repository["archived"]
-        unsupported_states << "disabled" if repository["disabled"]
-        unsupported_states << "fork" if repository["fork"]
-        unless unsupported_states.empty?
-          raise "Allowlist 仓库 #{full_name} 处于不可同步状态：#{unsupported_states.join(', ')}。请先更新策略。"
-        end
-
-        repository
-      end
+      names.map { |name| load_named_repository(api, owner, name, allowlisted: true) }
     end
   end
 
@@ -248,7 +288,7 @@ module SyncLabels
     end
 
     def repository_names
-      @policy[:repositories]
+      @policy.fetch(:repositories, [])
     end
   end
 

@@ -10,9 +10,10 @@ require_relative "sync-labels"
 class FakeApi
   attr_reader :calls
 
-  def initialize(labels: [], repositories: {})
+  def initialize(labels: [], repositories: {}, organization_repositories: nil)
     @labels = labels
     @repositories = repositories
+    @organization_repositories = organization_repositories
     @calls = []
   end
 
@@ -21,7 +22,12 @@ class FakeApi
     @repositories.fetch(path)
   end
 
-  def paginate(_path)
+  def paginate(path)
+    unless @organization_repositories.nil?
+      @calls << [:paginate, path]
+      return @organization_repositories.map(&:dup)
+    end
+
     @labels.map(&:dup)
   end
 
@@ -84,6 +90,27 @@ class SyncLabelsTest < Minitest::Test
       dry_run: dry_run,
       output: StringIO.new
     )
+  end
+
+  def load_governance_config(policy_document)
+    Dir.mktmpdir do |directory|
+      labels_path = File.join(directory, "labels.yml")
+      policy_path = File.join(directory, "label-policy.yml")
+      File.write(labels_path, YAML.dump(DESIRED))
+      File.write(policy_path, YAML.dump(policy_document))
+      return SyncLabels::GovernanceConfig.load(labels_path: labels_path, policy_path: policy_path)
+    end
+  end
+
+  def policy_document
+    {
+      "version" => 1,
+      "managed" => {
+        "prefixes" => ["type:"],
+        "exact_names" => ["help wanted"],
+        "legacy_names" => %w[bug enhancement]
+      }
+    }
   end
 
   def test_repository_synchronizer_loads_independently
@@ -160,6 +187,8 @@ class SyncLabelsTest < Minitest::Test
       assert_includes summary, "`matharts/example`"
       assert_includes summary, "bad \\| input second line"
       assert_includes summary, "Dry Run：`true`"
+      assert_includes summary, "模式：组织级受管标签"
+      refute_includes summary, "Allowlist"
     end
   end
 
@@ -424,6 +453,48 @@ class SyncLabelsTest < Minitest::Test
     ], api.calls
   end
 
+  def test_loads_all_eligible_organization_repositories_without_an_allowlist
+    policy = POLICY.merge(repositories: [].freeze)
+    api = FakeApi.new(
+      organization_repositories: [
+        { "full_name" => "matharts/active", "archived" => false, "disabled" => false, "fork" => false },
+        { "full_name" => "matharts/archived", "archived" => true, "disabled" => false, "fork" => false },
+        { "full_name" => "matharts/disabled", "archived" => false, "disabled" => true, "fork" => false },
+        { "full_name" => "matharts/fork", "archived" => false, "disabled" => false, "fork" => true }
+      ]
+    )
+
+    repositories = governance_config(policy: policy).repositories(api: api, owner: "matharts")
+
+    assert_equal ["matharts/active"], repositories.map { |repository| repository["full_name"] }
+    assert_equal [
+      [:paginate, "/orgs/matharts/repos?type=all&sort=full_name&direction=asc"]
+    ], api.calls
+  end
+
+  def test_selects_one_repository_when_the_allowlist_is_omitted
+    policy = POLICY.merge(repositories: [].freeze)
+    api = FakeApi.new(
+      repositories: {
+        "/repos/matharts/example" => {
+          "full_name" => "matharts/example",
+          "archived" => false,
+          "disabled" => false,
+          "fork" => false
+        }
+      }
+    )
+
+    repositories = governance_config(policy: policy).repositories(
+      api: api,
+      owner: "matharts",
+      only_repository: "matharts/example"
+    )
+
+    assert_equal ["matharts/example"], repositories.map { |repository| repository["full_name"] }
+    assert_equal [[:get, "/repos/matharts/example"]], api.calls
+  end
+
   def test_policy_requires_aliases_to_remain_owned_as_legacy_names
     policy = POLICY.merge(legacy_names: Set.new(["bug"]).freeze)
 
@@ -457,6 +528,27 @@ class SyncLabelsTest < Minitest::Test
 
       assert_equal %w[example docs], config.repository_names
     end
+  end
+
+  def test_configuration_defaults_to_all_repositories_when_repositories_are_omitted
+    config = load_governance_config(policy_document)
+    api = FakeApi.new(
+      organization_repositories: [
+        { "full_name" => "matharts/example", "archived" => false, "disabled" => false, "fork" => false }
+      ]
+    )
+
+    repositories = config.repositories(api: api, owner: "matharts")
+
+    assert_equal ["matharts/example"], repositories.map { |repository| repository["full_name"] }
+    assert_empty config.repository_names
+  end
+
+  def test_configuration_treats_an_empty_include_as_all_repositories
+    document = policy_document.merge("repositories" => { "include" => [] })
+    config = load_governance_config(document)
+
+    assert_empty config.repository_names
   end
 
   def test_configuration_rejects_unknown_label_fields
