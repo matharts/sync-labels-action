@@ -94,6 +94,14 @@ repositories:
 
 ## 开发
 
+核心代码位于 `src/`，按深模块组织：
+
+- `GovernanceConfig.load(...)` 隐藏 YAML、标签/策略校验和仓库选择
+- `RepositorySynchronizer#sync(...)` 负责单仓库差异计算与变更
+- `Application#run` 负责多仓库容错和结果聚合
+- `SummaryWriter#write(...)` 负责 GitHub Actions summary
+- `sync-labels.rb` 仅把环境变量适配到上述接口
+
 ```bash
 ruby test_sync_labels.rb
 ruby script/validate-action-pins.rb
