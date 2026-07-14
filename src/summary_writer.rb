@@ -29,7 +29,7 @@ module SyncLabels
       summary.puts "- 标签配置：`#{@config_file}`"
       summary.puts "- 同步策略：`#{@policy_file}`"
       summary.puts "- Dry Run：`#{@dry_run}`"
-      summary.puts "- 模式：组织级受管标签 + 仓库 Allowlist"
+      summary.puts "- 模式：组织级受管标签"
       summary.puts
     end
 
