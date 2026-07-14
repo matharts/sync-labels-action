@@ -18,19 +18,10 @@ managed:
 
   # 组织曾经拥有且仍需清理的旧标签名。
   # 从 labels.yml 的 aliases 中移除迁移映射后，也应暂时保留在这里，
-  # 直到所有 Allowlist 仓库都确认完成清理。
+  # 直到所有合格组织仓库都确认完成清理。
   legacy_names:
     - "bug"
     - "enhancement"
     - "documentation"
     - "duplicate"
     - "wontfix"
-
-repositories:
-  # 只有显式列出的仓库会被预览或修改。新增仓库不会自动进入同步范围。
-  include:
-    - ".github"
-    - "epheon"
-    - "matharts"
-    - "skills"
-    - "ziwei"

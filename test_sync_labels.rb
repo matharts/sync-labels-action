@@ -592,12 +592,13 @@ class SyncLabelsTest < Minitest::Test
     end
   end
 
-  def test_repository_policy_matches_current_matharts_configuration
+  def test_matharts_configuration_defaults_to_all_eligible_repositories
     config = SyncLabels::GovernanceConfig.load(
       labels_path: File.join(__dir__, ".github/labels.yml"),
       policy_path: File.join(__dir__, ".github/label-policy.yml")
     )
 
-    assert_equal %w[.github epheon matharts skills ziwei], config.repository_names
+    assert config.all_repositories?
+    assert_nil config.repository_names
   end
 end
