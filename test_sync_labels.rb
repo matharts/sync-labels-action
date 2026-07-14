@@ -183,4 +183,12 @@ class SyncLabelsTest < Minitest::Test
       assert_equal %w[example docs], policy[:repositories]
     end
   end
+
+  def test_repository_policy_matches_current_matharts_configuration
+    labels = load_labels(File.join(__dir__, ".github/labels.yml"))
+    policy = load_policy(File.join(__dir__, ".github/label-policy.yml"))
+
+    validate_label_policy!(labels, policy)
+    assert_equal %w[.github epheon matharts skills ziwei], policy[:repositories]
+  end
 end

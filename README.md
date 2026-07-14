@@ -13,6 +13,18 @@
 
 运行环境只需要 GitHub-hosted runner 自带的 Ruby，无第三方运行时依赖。
 
+## MathArts 生产自动化
+
+本仓库同时承载 MathArts 当前使用的完整标签治理链路：
+
+- [`.github/labels.yml`](.github/labels.yml)：组织标签的权威定义
+- [`.github/label-policy.yml`](.github/label-policy.yml)：受管命名空间、旧标签和仓库 Allowlist
+- [`preview-labels.yml`](.github/workflows/preview-labels.yml)：Pull Request、`main` 推送及每周定时的只读漂移检查
+- [`sync-labels.yml`](.github/workflows/sync-labels.yml)：受 Environment 保护的手动生产同步
+- [`docs/label-governance.md`](docs/label-governance.md)：标签使用、变更和生命周期规则
+
+预览工作流使用仓库 `GITHUB_TOKEN` 和只读权限。生产同步通过 GitHub App 短时效令牌执行，要求 `APP_CLIENT_ID` variable、`APP_PRIVATE_KEY` secret 和 `label-governance-production` Environment。
+
 ## 使用
 
 为降低供应链风险，请把 `COMMIT_SHA` 替换为经过审核的完整提交 SHA。

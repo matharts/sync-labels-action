@@ -1,0 +1,204 @@
+# MathArts 组织级跨仓库标签
+#
+# 本文件是标签名称、颜色、描述和迁移别名的唯一权威来源。
+# 使用规则、权限与生命周期见 docs/label-governance.md。
+# aliases 仅供同步器迁移旧标签，不是可继续使用的标签名。
+
+# =============================================================================
+# Type
+# 表示事项或变更的主要工作类型。
+# =============================================================================
+
+- name: "type: bug"
+  color: "D73A4A"
+  description: "已有行为出现错误、缺陷或回归"
+  aliases:
+    - "bug"
+
+- name: "type: feature"
+  color: "A2EEEF"
+  description: "新增能力或改进现有功能"
+  aliases:
+    - "enhancement"
+
+- name: "type: docs"
+  color: "0075CA"
+  description: "文档、示例、翻译或说明内容的变更"
+  aliases:
+    - "documentation"
+
+- name: "type: data"
+  color: "5319E7"
+  description: "术语、映射、常量、规则表或知识数据变更"
+
+- name: "type: research"
+  color: "D4C5F9"
+  description: "需要调查资料、验证证据或澄清规则"
+
+- name: "type: refactor"
+  color: "C2E0C6"
+  description: "不应改变外部行为的代码或结构调整"
+
+- name: "type: test"
+  color: "BFDADC"
+  description: "测试、测试数据或验证基础设施变更"
+
+- name: "type: maintenance"
+  color: "EDEDED"
+  description: "构建、工具、CI、仓库配置或日常维护工作"
+
+- name: "type: dependencies"
+  color: "0366D6"
+  description: "依赖新增、升级、降级、替换或移除"
+
+# =============================================================================
+# Status
+# 表示当前事项所处的主要处理状态。
+#
+# status:* 原则上互斥。状态变化时应移除旧状态，而不是持续叠加。
+# =============================================================================
+
+- name: "status: needs triage"
+  color: "FBCA04"
+  description: "尚未确认类型、范围、有效性或后续处理方式"
+
+- name: "status: needs information"
+  color: "FEF2C0"
+  description: "需要报告者或相关人员补充必要信息"
+
+- name: "status: needs reproduction"
+  color: "F9D0C4"
+  description: "需要最小复现示例或独立复现结果"
+
+- name: "status: needs decision"
+  color: "D4C5F9"
+  description: "存在需要维护者或正式流程决定的问题"
+
+- name: "status: ready"
+  color: "0E8A16"
+  description: "范围和验收条件已明确，可以开始处理"
+
+- name: "status: blocked"
+  color: "B60205"
+  description: "存在明确的前置事项、依赖或其他阻塞"
+
+- name: "status: waiting upstream"
+  color: "C5DEF5"
+  description: "正在等待上游项目、平台或外部依赖处理"
+
+# =============================================================================
+# Priority
+# 表示维护者确认后的处理优先级。
+#
+# 不要求所有事项都设置优先级。
+# 未设置优先级表示尚未排序，而不是默认中优先级。
+# =============================================================================
+
+- name: "priority: critical"
+  color: "B60205"
+  description: "需要立即关注，正在造成严重或广泛影响"
+
+- name: "priority: high"
+  color: "D93F0B"
+  description: "重要且应优先安排处理"
+
+- name: "priority: medium"
+  color: "FBCA04"
+  description: "正常优先级，按计划安排处理"
+
+- name: "priority: low"
+  color: "C2E0C6"
+  description: "影响有限，可在资源允许时处理"
+
+# =============================================================================
+# Contribution
+# 保留 GitHub 约定名称，以兼容公开贡献入口。
+# =============================================================================
+
+- name: "good first issue"
+  color: "7057FF"
+  description: "范围清楚、风险较低且适合首次贡献者"
+
+- name: "help wanted"
+  color: "008672"
+  description: "维护者明确欢迎并能够评审外部贡献"
+
+# =============================================================================
+# Impact
+# 表示事项或变更可能影响的质量属性。
+# =============================================================================
+
+- name: "impact: breaking"
+  color: "B60205"
+  description: "可能破坏公共接口、配置、格式或既有行为"
+
+- name: "impact: security"
+  color: "8B0000"
+  description: "涉及公开安全加固或已经披露的安全事项"
+
+- name: "impact: performance"
+  color: "E99695"
+  description: "对性能、延迟、容量或资源消耗有明显影响"
+
+- name: "impact: data integrity"
+  color: "5319E7"
+  description: "可能影响知识数据、计算结果或持久化数据正确性"
+
+- name: "impact: compatibility"
+  color: "F9D0C4"
+  description: "涉及平台、环境、版本或实现之间的兼容性"
+
+- name: "impact: deprecation"
+  color: "D93F0B"
+  description: "引入、修改或移除弃用行为"
+
+# =============================================================================
+# Process
+# 表示事项与正式决策、规范、发布或治理流程的关系。
+# =============================================================================
+
+- name: "process: rfc"
+  color: "1D76DB"
+  description: "属于 RFC 提案、讨论、评审或实施流程"
+
+- name: "process: adr"
+  color: "0052CC"
+  description: "涉及记录或落实已经作出的架构决定"
+
+- name: "process: specification"
+  color: "006B75"
+  description: "涉及规范定义、行为要求或兼容性约束"
+
+- name: "process: release"
+  color: "0E8A16"
+  description: "涉及版本准备、发布、迁移或发布后工作"
+
+- name: "process: governance"
+  color: "6F42C1"
+  description: "涉及组织政策、角色、权限或社区治理流程"
+
+# =============================================================================
+# Resolution
+# 表示事项关闭但没有按普通完成方式处理的原因。
+# =============================================================================
+
+- name: "resolution: duplicate"
+  color: "CFD3D7"
+  description: "已有其他 Issue 或 Pull Request 承载相同事项"
+  aliases:
+    - "duplicate"
+
+- name: "resolution: not planned"
+  color: "EDEDED"
+  description: "经过评估后，当前不计划继续处理"
+  aliases:
+    - "wontfix"
+
+- name: "resolution: cannot reproduce"
+  color: "D4C5F9"
+  description: "根据现有信息和测试环境无法复现问题"
+
+- name: "resolution: superseded"
+  color: "BFD4F2"
+  description: "已经被新的设计、规范、实现或事项替代"
+

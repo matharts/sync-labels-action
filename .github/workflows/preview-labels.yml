@@ -1,0 +1,67 @@
+name: Preview organization labels
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "只预览 Allowlist 中的指定仓库；留空预览全部"
+        required: false
+        type: string
+        default: ""
+
+  pull_request:
+    paths:
+      - ".github/labels.yml"
+      - ".github/label-policy.yml"
+      - "action.yml"
+      - "sync-labels.rb"
+      - ".github/workflows/preview-labels.yml"
+      - ".github/workflows/sync-labels.yml"
+
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/labels.yml"
+      - ".github/label-policy.yml"
+      - "action.yml"
+      - "sync-labels.rb"
+      - ".github/workflows/preview-labels.yml"
+      - ".github/workflows/sync-labels.yml"
+
+  schedule:
+    # 每周一 UTC 03:17 检查 Allowlist 仓库的标签漂移。
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: preview-organization-labels-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview-labels:
+    name: Preview organization label changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout governance repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Preview MathArts label synchronization
+        uses: ./
+        with:
+          token: ${{ github.token }}
+          owner: ${{ github.repository_owner }}
+          config_file: ".github/labels.yml"
+          policy_file: ".github/label-policy.yml"
+          dry_run: "true"
+          repository: >-
+            ${{ github.event_name == 'workflow_dispatch'
+                && inputs.repository
+                || '' }}

@@ -1,0 +1,37 @@
+version: 1
+
+managed:
+  # 这些前缀定义组织拥有的标签命名空间。删除前缀下的正式标签后，
+  # 同步器仍会清理各仓库中遗留的同前缀标签。
+  prefixes:
+    - "type:"
+    - "status:"
+    - "priority:"
+    - "impact:"
+    - "process:"
+    - "resolution:"
+
+  # 没有组织前缀、但由 MathArts 统一管理的 GitHub 约定标签。
+  exact_names:
+    - "good first issue"
+    - "help wanted"
+
+  # 组织曾经拥有且仍需清理的旧标签名。
+  # 从 labels.yml 的 aliases 中移除迁移映射后，也应暂时保留在这里，
+  # 直到所有 Allowlist 仓库都确认完成清理。
+  legacy_names:
+    - "bug"
+    - "enhancement"
+    - "documentation"
+    - "duplicate"
+    - "wontfix"
+
+repositories:
+  # 只有显式列出的仓库会被预览或修改。新增仓库不会自动进入同步范围。
+  include:
+    - ".github"
+    - "epheon"
+    - "matharts"
+    - "skills"
+    - "ziwei"
+
