@@ -8,6 +8,8 @@ require_relative "src/governance_config"
 require_relative "src/repository_synchronizer"
 require_relative "src/runtime_options"
 require_relative "src/summary_writer"
+require_relative "src/sync_executor"
+require_relative "src/sync_planner"
 
 def run(env: ENV)
   options = SyncLabels::RuntimeOptions.load(env)

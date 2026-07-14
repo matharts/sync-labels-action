@@ -215,7 +215,9 @@ MathArts 的策略省略 `repositories.include`，因此预览和生产同步都
 
 ## 开发和测试
 
-核心代码位于 `src/`。运行以下命令检查行为和外部 Action 固定引用：
+核心代码位于 `src/`。每个仓库的同步分为两个阶段：`SyncPlanner` 根据现有标签和治理配置生成不可变的完整 `SyncPlan`，`SyncExecutor` 只负责预览或执行这份计划。因此，alias 冲突等确定性规划错误会在首次标签写入前终止该仓库。
+
+运行以下命令检查行为和外部 Action 固定引用：
 
 ```bash
 ruby test_sync_labels.rb

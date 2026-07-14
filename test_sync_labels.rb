@@ -551,6 +551,105 @@ class SyncLabelsTest < Minitest::Test
     assert_equal 3, attempts
   end
 
+  def test_planner_describes_complete_repository_change
+    existing = [
+      { "name" => "bug", "color" => "FFFFFF", "description" => "legacy" },
+      { "name" => "type: feature", "color" => "A2EEEF", "description" => "新增能力或改进现有功能" },
+      { "name" => "type: obsolete", "color" => "000000", "description" => "stale" },
+      { "name" => "custom", "color" => "123456", "description" => "repository extension" }
+    ]
+
+    plan = SyncLabels::SyncPlanner.new(config: governance_config).plan(existing)
+
+    assert_equal %i[rename unchanged create delete preserve], plan.entries.map(&:action)
+    assert_equal ["bug", "type: feature", "help wanted", "type: obsolete", "custom"], plan.entries.map(&:name)
+    assert_equal(
+      { created: 1, updated: 0, renamed: 1, deleted: 1, unchanged: 1, preserved: 1 },
+      plan.counts.to_h
+    )
+    assert_equal "rename", plan.to_h.fetch("entries").first.fetch("action")
+  end
+
+  def test_plan_is_immutable_and_json_serializable
+    desired = {
+      "name" => "type: bug",
+      "color" => "D73A4A",
+      "description" => "bug",
+      "aliases" => ["bug"]
+    }
+    source_entry = SyncLabels::PlanEntry.new(action: :create, name: "type: bug", desired: desired)
+    plan = SyncLabels::SyncPlan.new(entries: [source_entry])
+    desired["name"] = "changed after planning"
+    source_entry.name = "changed after planning"
+
+    assert plan.frozen?
+    assert plan.entries.frozen?
+    assert plan.entries.all?(&:frozen?)
+    assert plan.entries.first.desired.frozen?
+    assert plan.entries.first.desired.fetch("aliases").frozen?
+    assert_equal "type: bug", plan.entries.first.name
+    assert_equal "type: bug", plan.entries.first.desired.fetch("name")
+    assert_equal plan.to_h, JSON.parse(JSON.generate(plan))
+  end
+
+  def test_plan_rejects_an_unknown_action_before_apply
+    entries = [
+      SyncLabels::PlanEntry.new(
+        action: :create,
+        name: "type: bug",
+        desired: { "name" => "type: bug", "color" => "D73A4A", "description" => "bug" }
+      ),
+      SyncLabels::PlanEntry.new(action: :unknown, name: "later")
+    ]
+
+    error = assert_raises(ArgumentError) { SyncLabels::SyncPlan.new(entries: entries) }
+
+    assert_includes error.message, "未知同步计划操作"
+  end
+
+  def test_executor_applies_a_precomputed_plan
+    api = FakeApi.new
+    plan = SyncLabels::SyncPlanner.new(config: governance_config).plan([
+      { "name" => "bug", "color" => "FFFFFF", "description" => "legacy" },
+      { "name" => "type: obsolete", "color" => "000000", "description" => "stale" }
+    ])
+
+    counts = SyncLabels::SyncExecutor.new(api: api, dry_run: false, output: StringIO.new)
+      .apply("matharts/example", plan)
+
+    assert_equal plan.counts, counts
+    assert_equal %i[patch post post delete], api.calls.map(&:first)
+    assert_equal "/repos/matharts/example/labels/bug", api.calls.first[1]
+    assert_equal "/repos/matharts/example/labels/type%3A%20obsolete", api.calls.last[1]
+  end
+
+  def test_repository_planning_failure_happens_before_the_first_mutation
+    labels = DESIRED.map(&:dup)
+    labels[1] = labels[1].merge("aliases" => %w[enhancement feature])
+    policy = POLICY.merge(legacy_names: Set.new(%w[bug enhancement feature]).freeze)
+    config = governance_config(labels: labels, policy: policy)
+    api = FakeApi.new(
+      labels: [
+        { "name" => "enhancement", "color" => "FFFFFF", "description" => "legacy" },
+        { "name" => "feature", "color" => "FFFFFF", "description" => "legacy" }
+      ]
+    )
+    synchronizer = SyncLabels::RepositorySynchronizer.new(
+      api: api,
+      config: config,
+      dry_run: false,
+      output: StringIO.new
+    )
+
+    error = assert_raises(SyncLabels::RepositorySyncError) do
+      synchronizer.sync("matharts/example")
+    end
+
+    assert_includes error.message, "多个旧标签同时映射"
+    assert_empty api.calls
+    assert_equal SyncLabels::SyncResult.zero, error.counts
+  end
+
   def test_preserves_repository_specific_labels_and_removes_stale_managed_labels
     api = FakeApi.new(
       labels: [
