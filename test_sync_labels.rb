@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "stringio"
 require "tmpdir"
 require_relative "sync-labels"
 
@@ -69,6 +70,82 @@ class SyncLabelsTest < Minitest::Test
     legacy_names: Set.new(%w[bug enhancement]).freeze,
     repositories: %w[example docs].freeze
   }.freeze
+
+  def governance_config(labels: DESIRED, policy: POLICY)
+    SyncLabels::GovernanceConfig.build(labels: labels, policy: policy)
+  end
+
+  def repository_synchronizer(api, dry_run:)
+    SyncLabels::RepositorySynchronizer.new(
+      api: api,
+      config: governance_config,
+      dry_run: dry_run,
+      output: StringIO.new
+    )
+  end
+
+  def test_application_continues_after_one_repository_fails
+    config = Struct.new(:repositories).new([
+      { "full_name" => "matharts/failing" },
+      { "full_name" => "matharts/healthy" }
+    ])
+    synchronizer = Object.new
+    synchronizer.define_singleton_method(:sync) do |full_name|
+      raise "simulated failure" if full_name.end_with?("failing")
+
+      { created: 1, updated: 0, renamed: 0, deleted: 0, unchanged: 0, preserved: 0 }
+    end
+    output = StringIO.new
+    application = SyncLabels::Application.new(
+      repositories: config.repositories,
+      synchronizer: synchronizer,
+      dry_run: true,
+      output: output
+    )
+
+    result = application.run
+
+    refute result.success?
+    assert_equal ["matharts/failing"], result.failures.map { |failure| failure[:repository] }
+    assert_equal %w[matharts/failing matharts/healthy], result.results.map { |entry| entry[:repository] }
+    assert_includes output.string, "matharts/failing"
+    assert_includes output.string, "simulated failure"
+  end
+
+  def test_summary_writer_reports_and_escapes_failures
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "summary.md")
+      result = SyncLabels::RunResult.new(
+        results: [
+          {
+            repository: "matharts/example",
+            status: "失败",
+            created: 0,
+            updated: 0,
+            renamed: 0,
+            deleted: 0,
+            unchanged: 0,
+            preserved: 0
+          }
+        ],
+        failures: [{ repository: "matharts/example", error: "bad | input\nsecond line" }]
+      )
+      writer = SyncLabels::SummaryWriter.new(
+        path: path,
+        owner: "matharts",
+        config_file: "labels.yml",
+        policy_file: "policy.yml",
+        dry_run: true
+      )
+
+      writer.write(result)
+      summary = File.read(path, encoding: "UTF-8")
+
+      assert_includes summary, "`matharts/example`"
+      assert_includes summary, "bad \\| input second line"
+      assert_includes summary, "Dry Run：`true`"
+    end
+  end
 
   def test_github_api_requires_https
     error = assert_raises(ArgumentError) do
@@ -261,7 +338,7 @@ class SyncLabelsTest < Minitest::Test
       ]
     )
 
-    counts = sync_repository(api, "matharts/example", DESIRED, policy: POLICY, dry_run: false)
+    counts = repository_synchronizer(api, dry_run: false).sync("matharts/example")
 
     assert_equal 1, counts[:created]
     assert_equal 0, counts[:updated]
@@ -285,7 +362,7 @@ class SyncLabelsTest < Minitest::Test
       ]
     )
 
-    counts = sync_repository(api, "matharts/example", DESIRED, policy: POLICY, dry_run: true)
+    counts = repository_synchronizer(api, dry_run: true).sync("matharts/example")
 
     assert_empty api.calls
     assert_equal 1, counts[:renamed]
@@ -297,7 +374,7 @@ class SyncLabelsTest < Minitest::Test
     api = FakeApi.new
 
     error = assert_raises(RuntimeError) do
-      load_repositories(api, "matharts", POLICY, "private-project")
+      governance_config.repositories(api: api, owner: "matharts", only_repository: "private-project")
     end
 
     assert_includes error.message, "不在标签同步 Allowlist"
@@ -322,7 +399,7 @@ class SyncLabelsTest < Minitest::Test
       }
     )
 
-    repositories = load_repositories(api, "matharts", POLICY, "")
+    repositories = governance_config.repositories(api: api, owner: "matharts")
 
     assert_equal %w[matharts/example matharts/docs], repositories.map { |repository| repository["full_name"] }
     assert_equal [
@@ -335,7 +412,7 @@ class SyncLabelsTest < Minitest::Test
     policy = POLICY.merge(legacy_names: Set.new(["bug"]).freeze)
 
     error = assert_raises(RuntimeError) do
-      validate_label_policy!(DESIRED, policy)
+      governance_config(policy: policy)
     end
 
     assert_includes error.message, "enhancement"
@@ -360,19 +437,57 @@ class SyncLabelsTest < Minitest::Test
         )
       )
 
-      labels = load_labels(labels_path)
-      policy = load_policy(policy_path)
+      config = SyncLabels::GovernanceConfig.load(labels_path: labels_path, policy_path: policy_path)
 
-      validate_label_policy!(labels, policy)
-      assert_equal %w[example docs], policy[:repositories]
+      assert_equal %w[example docs], config.repository_names
+    end
+  end
+
+  def test_configuration_rejects_unknown_label_fields
+    Dir.mktmpdir do |directory|
+      labels_path = File.join(directory, "labels.yml")
+      policy_path = File.join(directory, "label-policy.yml")
+      File.write(labels_path, YAML.dump([{ "name" => "type: bug", "color" => "D73A4A", "extra" => true }]))
+      File.write(
+        policy_path,
+        YAML.dump(
+          "version" => 1,
+          "managed" => { "prefixes" => ["type:"], "exact_names" => [], "legacy_names" => [] },
+          "repositories" => { "include" => ["example"] }
+        )
+      )
+
+      error = assert_raises(RuntimeError) do
+        SyncLabels::GovernanceConfig.load(labels_path: labels_path, policy_path: policy_path)
+      end
+
+      assert_includes error.message, "未知字段"
+      assert_includes error.message, "extra"
+    end
+  end
+
+  def test_configuration_reports_invalid_yaml
+    Dir.mktmpdir do |directory|
+      labels_path = File.join(directory, "labels.yml")
+      policy_path = File.join(directory, "label-policy.yml")
+      File.write(labels_path, "- name: [\n")
+      File.write(policy_path, "version: 1\n")
+
+      error = assert_raises(RuntimeError) do
+        SyncLabels::GovernanceConfig.load(labels_path: labels_path, policy_path: policy_path)
+      end
+
+      assert_includes error.message, "YAML 无效"
+      assert_includes error.message, labels_path
     end
   end
 
   def test_repository_policy_matches_current_matharts_configuration
-    labels = load_labels(File.join(__dir__, ".github/labels.yml"))
-    policy = load_policy(File.join(__dir__, ".github/label-policy.yml"))
+    config = SyncLabels::GovernanceConfig.load(
+      labels_path: File.join(__dir__, ".github/labels.yml"),
+      policy_path: File.join(__dir__, ".github/label-policy.yml")
+    )
 
-    validate_label_policy!(labels, policy)
-    assert_equal %w[.github epheon matharts skills ziwei], policy[:repositories]
+    assert_equal %w[.github epheon matharts skills ziwei], config.repository_names
   end
 end
