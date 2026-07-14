@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: "只同步 Allowlist 中的指定仓库；留空同步全部"
+        description: "只同步指定的合格组织仓库；留空同步全部合格仓库"
         required: false
         type: string
         default: ""

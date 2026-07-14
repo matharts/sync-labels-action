@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: "只预览 Allowlist 中的指定仓库；留空预览全部"
+        description: "只预览指定的合格组织仓库；留空预览全部合格仓库"
         required: false
         type: string
         default: ""
@@ -32,7 +32,7 @@ on:
       - ".github/workflows/sync-labels.yml"
 
   schedule:
-    # 每周一 UTC 03:17 检查 Allowlist 仓库的标签漂移。
+    # 每周一 UTC 03:17 检查全部合格组织仓库的标签漂移。
     - cron: "17 3 * * 1"
 
 permissions:
