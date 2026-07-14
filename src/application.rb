@@ -7,6 +7,14 @@ module SyncLabels
     def success?
       failures.empty?
     end
+
+    def totals
+      results.each_with_object(SyncResult.zero) do |result, aggregate|
+        SyncResult.members.each do |field|
+          aggregate[field] += result.counts[field]
+        end
+      end
+    end
   end
 
   class Application
@@ -33,7 +41,8 @@ module SyncLabels
           )
         rescue StandardError => error
           report_failure(full_name, error)
-          results << RepositoryOutcome.new(repository: full_name, status: "失败", counts: SyncResult.zero)
+          counts = error.respond_to?(:counts) ? error.counts : SyncResult.zero
+          results << RepositoryOutcome.new(repository: full_name, status: "失败", counts: counts)
           failures << { repository: full_name, error: error.message }
         end
       end

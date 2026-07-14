@@ -3,69 +3,58 @@
 
 require_relative "src/application"
 require_relative "src/github_api"
+require_relative "src/github_output_writer"
 require_relative "src/governance_config"
 require_relative "src/repository_synchronizer"
+require_relative "src/runtime_options"
 require_relative "src/summary_writer"
 
-def parse_boolean_input(name, value)
-  case value.to_s.strip.downcase
-  when "1", "true", "yes", "on"
-    true
-  when "0", "false", "no", "off"
-    false
-  else
-    raise ArgumentError, "#{name} 必须是 true/false、1/0、yes/no 或 on/off。"
-  end
-end
+def run(env: ENV)
+  options = SyncLabels::RuntimeOptions.load(env)
+  config = SyncLabels::GovernanceConfig.load(
+    labels_path: options.config_file,
+    policy_path: options.policy_file
+  )
+  api = GitHubApi.new(token: options.token, base_url: options.api_url)
+  repositories = config.repositories(
+    api: api,
+    owner: options.owner,
+    only_repository: options.only_repository
+  )
 
-TOKEN = ENV.fetch("SYNC_LABELS_TOKEN", "")
-OWNER = ENV.fetch("SYNC_LABELS_OWNER", "")
-CONFIG_FILE = ENV.fetch("SYNC_LABELS_CONFIG_FILE", ".github/labels.yml")
-POLICY_FILE = ENV.fetch("SYNC_LABELS_POLICY_FILE", ".github/label-policy.yml")
-ONLY_REPOSITORY = ENV.fetch("SYNC_LABELS_REPOSITORY", "").strip
-API_URL = ENV.fetch("SYNC_LABELS_API_URL", "https://api.github.com").sub(%r{/\z}, "")
-DRY_RUN = parse_boolean_input("SYNC_LABELS_DRY_RUN", ENV.fetch("SYNC_LABELS_DRY_RUN", "true"))
-
-def run
-  raise "SYNC_LABELS_TOKEN 不能为空。" if TOKEN.empty?
-  raise "SYNC_LABELS_OWNER 不能为空。" if OWNER.empty?
-
-  config = SyncLabels::GovernanceConfig.load(labels_path: CONFIG_FILE, policy_path: POLICY_FILE)
-  api = GitHubApi.new(token: TOKEN, base_url: API_URL)
-  repositories = config.repositories(api: api, owner: OWNER, only_repository: ONLY_REPOSITORY)
-
-  puts "Owner: #{OWNER}"
-  puts "Config: #{CONFIG_FILE}"
-  puts "Policy: #{POLICY_FILE}"
-  puts "Dry run: #{DRY_RUN}"
+  puts "Owner: #{options.owner}"
+  puts "Config: #{options.config_file}"
+  puts "Policy: #{options.policy_file}"
+  puts "Dry run: #{options.dry_run}"
   puts "Repositories: #{repositories.length}"
   puts
 
   synchronizer = SyncLabels::RepositorySynchronizer.new(
     api: api,
     config: config,
-    dry_run: DRY_RUN
+    dry_run: options.dry_run
   )
   result = SyncLabels::Application.new(
     repositories: repositories,
     synchronizer: synchronizer,
-    dry_run: DRY_RUN
+    dry_run: options.dry_run
   ).run
 
   SyncLabels::SummaryWriter.new(
-    path: ENV["GITHUB_STEP_SUMMARY"],
-    owner: OWNER,
-    config_file: CONFIG_FILE,
-    policy_file: POLICY_FILE,
-    dry_run: DRY_RUN
+    path: env["GITHUB_STEP_SUMMARY"],
+    owner: options.owner,
+    config_file: options.config_file,
+    policy_file: options.policy_file,
+    dry_run: options.dry_run
   ).write(result)
+  SyncLabels::GitHubOutputWriter.new(path: env["GITHUB_OUTPUT"]).write(result)
 
   unless result.success?
     warn "#{result.failures.length} 个仓库同步失败。"
     return 1
   end
 
-  puts(DRY_RUN ? "Dry Run 完成。" : "标签同步完成。")
+  puts(options.dry_run ? "Dry Run 完成。" : "标签同步完成。")
   0
 end
 

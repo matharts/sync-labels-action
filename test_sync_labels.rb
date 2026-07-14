@@ -92,15 +92,12 @@ class SyncLabelsTest < Minitest::Test
     )
   end
 
-  def evaluate_dry_run_input(value)
-    # The tested value is passed only as environment data; the executable and script are fixed.
-    # nosemgrep: ruby.lang.security.dangerous-exec.dangerous-exec
-    Open3.capture3(
-      { "SYNC_LABELS_DRY_RUN" => value },
-      RbConfig.ruby,
-      "-e",
-      'require "./sync-labels"; puts DRY_RUN',
-      chdir: __dir__
+  def runtime_options(overrides = {})
+    SyncLabels::RuntimeOptions.load(
+      {
+        "SYNC_LABELS_TOKEN" => "test-token",
+        "SYNC_LABELS_OWNER" => "matharts"
+      }.merge(overrides)
     )
   end
 
@@ -139,30 +136,48 @@ class SyncLabelsTest < Minitest::Test
 
   def test_dry_run_input_accepts_explicit_boolean_values
     {
-      "true" => "true",
-      "1" => "true",
-      "yes" => "true",
-      "on" => "true",
-      "false" => "false",
-      "0" => "false",
-      "no" => "false",
-      "off" => "false"
+      "true" => true,
+      "1" => true,
+      "yes" => true,
+      "on" => true,
+      "false" => false,
+      "0" => false,
+      "no" => false,
+      "off" => false
     }.each do |input, expected|
-      output, error, status = evaluate_dry_run_input(input)
-
-      assert status.success?, "#{input.inspect}: #{error}"
-      assert_equal "#{expected}\n", output
+      assert_equal expected, runtime_options("SYNC_LABELS_DRY_RUN" => input).dry_run
     end
   end
 
   def test_dry_run_input_rejects_unknown_values
     ["treu", "", "write"].each do |input|
-      output, error, status = evaluate_dry_run_input(input)
+      error = assert_raises(ArgumentError) do
+        runtime_options("SYNC_LABELS_DRY_RUN" => input)
+      end
 
-      refute status.success?, input.inspect
-      assert_empty output
-      assert_includes error, "SYNC_LABELS_DRY_RUN 必须是 true/false、1/0、yes/no 或 on/off。"
+      assert_includes error.message, "SYNC_LABELS_DRY_RUN 必须是 true/false、1/0、yes/no 或 on/off。"
     end
+  end
+
+  def test_runtime_options_validate_required_inputs_and_defaults
+    token_error = assert_raises(RuntimeError) do
+      runtime_options("SYNC_LABELS_TOKEN" => "")
+    end
+    owner_error = assert_raises(RuntimeError) do
+      runtime_options("SYNC_LABELS_OWNER" => "")
+    end
+
+    assert_equal "SYNC_LABELS_TOKEN 不能为空。", token_error.message
+    assert_equal "SYNC_LABELS_OWNER 不能为空。", owner_error.message
+
+    options = runtime_options
+    assert_equal "test-token", options.token
+    assert_equal "matharts", options.owner
+    assert_equal ".github/labels.yml", options.config_file
+    assert_equal ".github/label-policy.yml", options.policy_file
+    assert_equal "", options.only_repository
+    assert_equal "https://api.github.com", options.api_url
+    assert options.dry_run
   end
 
   def test_application_continues_after_one_repository_fails
@@ -172,7 +187,19 @@ class SyncLabelsTest < Minitest::Test
     ])
     synchronizer = Object.new
     synchronizer.define_singleton_method(:sync) do |full_name|
-      raise "simulated failure" if full_name.end_with?("failing")
+      if full_name.end_with?("failing")
+        raise SyncLabels::RepositorySyncError.new(
+          "simulated failure",
+          counts: SyncLabels::SyncResult.new(
+            created: 1,
+            updated: 0,
+            renamed: 0,
+            deleted: 0,
+            unchanged: 0,
+            preserved: 0
+          )
+        )
+      end
 
       SyncLabels::SyncResult.new(
         created: 1,
@@ -196,8 +223,36 @@ class SyncLabelsTest < Minitest::Test
     refute result.success?
     assert_equal ["matharts/failing"], result.failures.map { |failure| failure[:repository] }
     assert_equal %w[matharts/failing matharts/healthy], result.results.map(&:repository)
+    assert_equal 1, result.results.first.counts.created
+    assert_equal 2, result.totals.created
     assert_includes output.string, "matharts/failing"
     assert_includes output.string, "simulated failure"
+  end
+
+  def test_repository_synchronizer_reports_changes_completed_before_a_failure
+    api = FakeApi.new(labels: [])
+    mutation_count = 0
+    api.define_singleton_method(:post) do |path, body|
+      calls << [:post, path, body]
+      mutation_count += 1
+      raise "second mutation failed" if mutation_count == 2
+    end
+    output = StringIO.new
+    synchronizer = SyncLabels::RepositorySynchronizer.new(
+      api: api,
+      config: governance_config,
+      dry_run: false,
+      output: output
+    )
+
+    error = assert_raises(SyncLabels::RepositorySyncError) do
+      synchronizer.sync("matharts/example")
+    end
+
+    assert_equal "second mutation failed", error.message
+    assert_equal 1, error.counts.created
+    assert_equal 1, output.string.scan("::group::matharts/example").length
+    assert_equal 1, output.string.scan("::endgroup::").length
   end
 
   def test_summary_writer_reports_and_escapes_failures
@@ -229,6 +284,92 @@ class SyncLabelsTest < Minitest::Test
       assert_includes summary, "Dry Run：`true`"
       assert_includes summary, "模式：组织级受管标签"
       refute_includes summary, "Allowlist"
+    end
+  end
+
+  def test_github_output_writer_exposes_aggregate_results
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "github-output")
+      result = SyncLabels::RunResult.new(
+        results: [
+          SyncLabels::RepositoryOutcome.new(
+            repository: "matharts/example",
+            status: "同步完成",
+            counts: SyncLabels::SyncResult.new(
+              created: 1,
+              updated: 2,
+              renamed: 0,
+              deleted: 1,
+              unchanged: 3,
+              preserved: 4
+            )
+          ),
+          SyncLabels::RepositoryOutcome.new(
+            repository: "matharts/docs",
+            status: "同步完成",
+            counts: SyncLabels::SyncResult.new(
+              created: 2,
+              updated: 0,
+              renamed: 1,
+              deleted: 0,
+              unchanged: 1,
+              preserved: 0
+            )
+          ),
+          SyncLabels::RepositoryOutcome.new(
+            repository: "matharts/failing",
+            status: "失败",
+            counts: SyncLabels::SyncResult.zero
+          )
+        ],
+        failures: [{ repository: "matharts/failing", error: "simulated failure" }]
+      )
+
+      SyncLabels::GitHubOutputWriter.new(path: path).write(result)
+      outputs = File.readlines(path, chomp: true).to_h { |line| line.split("=", 2) }
+
+      assert_equal "3", outputs.fetch("repositories")
+      assert_equal "true", outputs.fetch("changed")
+      assert_equal "3", outputs.fetch("created")
+      assert_equal "2", outputs.fetch("updated")
+      assert_equal "1", outputs.fetch("renamed")
+      assert_equal "1", outputs.fetch("deleted")
+      assert_equal "4", outputs.fetch("unchanged")
+      assert_equal "4", outputs.fetch("preserved")
+      assert_equal "1", outputs.fetch("failures")
+      refute SyncLabels::SyncResult.zero.changed?
+    end
+  end
+
+  def test_github_output_writer_reports_no_drift
+    Dir.mktmpdir do |directory|
+      path = File.join(directory, "github-output")
+      result = SyncLabels::RunResult.new(
+        results: [
+          SyncLabels::RepositoryOutcome.new(
+            repository: "matharts/example",
+            status: "预览完成",
+            counts: SyncLabels::SyncResult.zero
+          )
+        ],
+        failures: []
+      )
+
+      SyncLabels::GitHubOutputWriter.new(path: path).write(result)
+
+      assert_includes File.readlines(path, chomp: true), "changed=false"
+    end
+  end
+
+  def test_action_metadata_maps_all_declared_outputs_to_the_sync_step
+    metadata = YAML.safe_load(File.read(File.expand_path("action.yml", __dir__)))
+    output_names = %w[changed repositories created updated renamed deleted unchanged preserved failures]
+    sync_step = metadata.fetch("runs").fetch("steps").find { |step| step["id"] == "sync" }
+
+    refute_nil sync_step
+    assert_equal output_names.sort, metadata.fetch("outputs").keys.sort
+    output_names.each do |name|
+      assert_equal "${{ steps.sync.outputs.#{name} }}", metadata.dig("outputs", name, "value")
     end
   end
 
