@@ -92,6 +92,18 @@ class SyncLabelsTest < Minitest::Test
     )
   end
 
+  def evaluate_dry_run_input(value)
+    # The tested value is passed only as environment data; the executable and script are fixed.
+    # nosemgrep: ruby.lang.security.dangerous-exec.dangerous-exec
+    Open3.capture3(
+      { "SYNC_LABELS_DRY_RUN" => value },
+      RbConfig.ruby,
+      "-e",
+      'require "./sync-labels"; puts DRY_RUN',
+      chdir: __dir__
+    )
+  end
+
   def load_governance_config(policy_document)
     Dir.mktmpdir do |directory|
       labels_path = File.join(directory, "labels.yml")
@@ -123,6 +135,34 @@ class SyncLabelsTest < Minitest::Test
     _output, error, status = Open3.capture3(RbConfig.ruby, "-e", script)
 
     assert status.success?, error
+  end
+
+  def test_dry_run_input_accepts_explicit_boolean_values
+    {
+      "true" => "true",
+      "1" => "true",
+      "yes" => "true",
+      "on" => "true",
+      "false" => "false",
+      "0" => "false",
+      "no" => "false",
+      "off" => "false"
+    }.each do |input, expected|
+      output, error, status = evaluate_dry_run_input(input)
+
+      assert status.success?, "#{input.inspect}: #{error}"
+      assert_equal "#{expected}\n", output
+    end
+  end
+
+  def test_dry_run_input_rejects_unknown_values
+    ["treu", "", "write"].each do |input|
+      output, error, status = evaluate_dry_run_input(input)
+
+      refute status.success?, input.inspect
+      assert_empty output
+      assert_includes error, "SYNC_LABELS_DRY_RUN 必须是 true/false、1/0、yes/no 或 on/off。"
+    end
   end
 
   def test_application_continues_after_one_repository_fails

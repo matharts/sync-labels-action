@@ -7,13 +7,24 @@ require_relative "src/governance_config"
 require_relative "src/repository_synchronizer"
 require_relative "src/summary_writer"
 
+def parse_boolean_input(name, value)
+  case value.to_s.strip.downcase
+  when "1", "true", "yes", "on"
+    true
+  when "0", "false", "no", "off"
+    false
+  else
+    raise ArgumentError, "#{name} 必须是 true/false、1/0、yes/no 或 on/off。"
+  end
+end
+
 TOKEN = ENV.fetch("SYNC_LABELS_TOKEN", "")
 OWNER = ENV.fetch("SYNC_LABELS_OWNER", "")
 CONFIG_FILE = ENV.fetch("SYNC_LABELS_CONFIG_FILE", ".github/labels.yml")
 POLICY_FILE = ENV.fetch("SYNC_LABELS_POLICY_FILE", ".github/label-policy.yml")
 ONLY_REPOSITORY = ENV.fetch("SYNC_LABELS_REPOSITORY", "").strip
 API_URL = ENV.fetch("SYNC_LABELS_API_URL", "https://api.github.com").sub(%r{/\z}, "")
-DRY_RUN = %w[1 true yes on].include?(ENV.fetch("SYNC_LABELS_DRY_RUN", "true").downcase)
+DRY_RUN = parse_boolean_input("SYNC_LABELS_DRY_RUN", ENV.fetch("SYNC_LABELS_DRY_RUN", "true"))
 
 def run
   raise "SYNC_LABELS_TOKEN 不能为空。" if TOKEN.empty?
