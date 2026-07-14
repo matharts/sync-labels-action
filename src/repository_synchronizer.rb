@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "governance_config"
+require "set"
 require_relative "label_identity"
 require_relative "sync_result"
 
@@ -14,32 +14,17 @@ module SyncLabels
     end
 
     def sync(full_name)
-      sync_repository(
-        @api,
-        full_name,
-        @config.labels,
-        dry_run: @dry_run
-      )
-    end
-
-    private
-
-    def mutate(api, dry_run, method, *arguments)
-      api.public_send(method, *arguments) unless dry_run
-    end
-
-    def sync_repository(api, full_name, desired_labels, dry_run:)
       path = LabelIdentity.repository_path(full_name)
-      existing = api.paginate("/repos/#{path}/labels")
+      existing = @api.paginate("/repos/#{path}/labels")
       labels_by_name = existing.to_h { |label| [LabelIdentity.key(label["name"]), label] }
 
-      desired_keys = desired_labels.map { |label| LabelIdentity.key(label["name"]) }.to_set
+      desired_keys = @config.labels.map { |label| LabelIdentity.key(label["name"]) }.to_set
 
       counts = SyncResult.zero
 
       @output.puts "::group::#{full_name}"
 
-      desired_labels.each do |desired|
+      @config.labels.each do |desired|
         desired_name = desired["name"]
         desired_key = LabelIdentity.key(desired_name)
         current = labels_by_name[desired_key]
@@ -52,10 +37,8 @@ module SyncLabels
             current["description"].to_s != desired["description"]
 
           if changed
-            @output.puts "#{dry_run ? 'WOULD UPDATE' : 'UPDATE'}     #{current['name']} -> #{desired_name}"
+            @output.puts "#{@dry_run ? 'WOULD UPDATE' : 'UPDATE'}     #{current['name']} -> #{desired_name}"
             mutate(
-              api,
-              dry_run,
               :patch,
               "/repos/#{path}/labels/#{LabelIdentity.escape(current['name'])}",
               {
@@ -75,8 +58,8 @@ module SyncLabels
 
           alias_matches.each do |legacy|
             legacy_name = legacy.fetch("name")
-            @output.puts "#{dry_run ? 'WOULD DELETE' : 'DELETE'}     legacy alias #{legacy_name}"
-            mutate(api, dry_run, :delete, "/repos/#{path}/labels/#{LabelIdentity.escape(legacy_name)}")
+            @output.puts "#{@dry_run ? 'WOULD DELETE' : 'DELETE'}     legacy alias #{legacy_name}"
+            mutate(:delete, "/repos/#{path}/labels/#{LabelIdentity.escape(legacy_name)}")
             labels_by_name.delete(LabelIdentity.key(legacy_name))
             counts.deleted += 1
           end
@@ -91,10 +74,8 @@ module SyncLabels
 
         if alias_matches.length == 1
           old = alias_matches.first
-          @output.puts "#{dry_run ? 'WOULD RENAME' : 'RENAME'}     #{old['name']} -> #{desired_name}"
+          @output.puts "#{@dry_run ? 'WOULD RENAME' : 'RENAME'}     #{old['name']} -> #{desired_name}"
           mutate(
-            api,
-            dry_run,
             :patch,
             "/repos/#{path}/labels/#{LabelIdentity.escape(old['name'])}",
             {
@@ -109,10 +90,8 @@ module SyncLabels
           next
         end
 
-        @output.puts "#{dry_run ? 'WOULD CREATE' : 'CREATE'}     #{desired_name}"
+        @output.puts "#{@dry_run ? 'WOULD CREATE' : 'CREATE'}     #{desired_name}"
         mutate(
-          api,
-          dry_run,
           :post,
           "/repos/#{path}/labels",
           {
@@ -130,8 +109,8 @@ module SyncLabels
 
       stale_managed.sort_by { |label| label["name"].downcase }.each do |label|
         name = label.fetch("name")
-        @output.puts "#{dry_run ? 'WOULD DELETE' : 'DELETE'}     stale organization label #{name}"
-        mutate(api, dry_run, :delete, "/repos/#{path}/labels/#{LabelIdentity.escape(name)}")
+        @output.puts "#{@dry_run ? 'WOULD DELETE' : 'DELETE'}     stale organization label #{name}"
+        mutate(:delete, "/repos/#{path}/labels/#{LabelIdentity.escape(name)}")
         counts.deleted += 1
       end
 
@@ -145,6 +124,12 @@ module SyncLabels
     rescue StandardError
       @output.puts "::endgroup::"
       raise
+    end
+
+    private
+
+    def mutate(method, *arguments)
+      @api.public_send(method, *arguments) unless @dry_run
     end
   end
 end

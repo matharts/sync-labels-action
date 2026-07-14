@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "open3"
+require "rbconfig"
 require "stringio"
 require "tmpdir"
 require_relative "sync-labels"
@@ -82,6 +84,18 @@ class SyncLabelsTest < Minitest::Test
       dry_run: dry_run,
       output: StringIO.new
     )
+  end
+
+  def test_repository_synchronizer_loads_independently
+    script = <<~RUBY
+      require #{File.expand_path("src/repository_synchronizer", __dir__).inspect}
+      abort "GovernanceConfig was loaded" if defined?(SyncLabels::GovernanceConfig)
+      abort "Set was not loaded" unless defined?(Set)
+    RUBY
+
+    _output, error, status = Open3.capture3(RbConfig.ruby, "-e", script)
+
+    assert status.success?, error
   end
 
   def test_application_continues_after_one_repository_fails
