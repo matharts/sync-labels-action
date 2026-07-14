@@ -118,6 +118,77 @@ class SyncLabelsTest < Minitest::Test
     assert_empty responses
   end
 
+  def test_github_api_retries_network_errors_for_get_requests
+    attempts = 0
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: lambda do |_uri, _request|
+        attempts += 1
+        raise Net::ReadTimeout if attempts == 1
+
+        FakeResponse.new("200", '{"ok":true}', {})
+      end,
+      sleeper: ->(_delay) {},
+      max_retries: 1
+    )
+
+    assert_equal({ "ok" => true }, api.get("/status"))
+    assert_equal 2, attempts
+  end
+
+  def test_github_api_does_not_retry_mutating_requests
+    attempts = 0
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: lambda do |_uri, _request|
+        attempts += 1
+        raise Net::ReadTimeout
+      end,
+      sleeper: ->(_delay) { flunk "mutation must not be retried" },
+      max_retries: 3
+    )
+
+    assert_raises(Net::ReadTimeout) { api.post("/labels", { name: "bug" }) }
+    assert_equal 1, attempts
+  end
+
+  def test_github_api_does_not_retry_regular_client_errors
+    attempts = 0
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: lambda do |_uri, _request|
+        attempts += 1
+        FakeResponse.new("401", '{"message":"bad credentials"}', {})
+      end,
+      sleeper: ->(_delay) { flunk "401 must not be retried" }
+    )
+
+    error = assert_raises(RuntimeError) { api.get("/status") }
+    assert_includes error.message, "Status: 401"
+    assert_equal 1, attempts
+  end
+
+  def test_github_api_stops_after_retry_limit
+    attempts = 0
+    api = GitHubApi.new(
+      token: "token",
+      base_url: "https://api.example.test",
+      requester: lambda do |_uri, _request|
+        attempts += 1
+        FakeResponse.new("503", '{"message":"unavailable"}', { "retry-after" => "0" })
+      end,
+      sleeper: ->(_delay) {},
+      max_retries: 2
+    )
+
+    error = assert_raises(RuntimeError) { api.get("/status") }
+    assert_includes error.message, "Status: 503"
+    assert_equal 3, attempts
+  end
+
   def test_preserves_repository_specific_labels_and_removes_stale_managed_labels
     api = FakeApi.new(
       labels: [

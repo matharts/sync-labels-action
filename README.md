@@ -100,3 +100,7 @@ ruby script/validate-action-pins.rb
 ```
 
 CI 会在 Ruby 3.1、3.3 和 3.4 上运行测试，并使用 Actionlint 校验所有工作流。生产调用建议固定到完整提交 SHA；版本标签用于发布说明和人工发现，不替代不可变 SHA 校验。
+
+## License
+
+[MIT](LICENSE)

@@ -5,8 +5,9 @@ ACTION_FILE_GLOBS = [
   "action.{yml,yaml}",
   ".github/workflows/*.{yml,yaml}"
 ].freeze
-LOCAL_REFERENCE_PREFIXES = ["./", "docker://"].freeze
+LOCAL_REFERENCE_PREFIX = "./"
 FULL_COMMIT_SHA = /\A[0-9a-fA-F]{40}\z/
+CONTAINER_DIGEST = /\Adocker:\/\/.+@sha256:[0-9a-fA-F]{64}\z/
 USES_PATTERN = /^\s*(?:-\s*)?uses\s*:\s*(?:"([^"]+)"|'([^']+)'|([^#\s]+))/
 
 files = ACTION_FILE_GLOBS.flat_map { |pattern| Dir.glob(pattern) }.uniq.sort
@@ -19,9 +20,17 @@ files.each do |file|
     next unless match
 
     reference = match.captures.compact.first.to_s.strip
-    next if reference.start_with?(*LOCAL_REFERENCE_PREFIXES)
+    next if reference.start_with?(LOCAL_REFERENCE_PREFIX)
 
     external_references += 1
+    if reference.start_with?("docker://")
+      next if CONTAINER_DIGEST.match?(reference)
+
+      warn "#{file}:#{number}: Docker Action 必须固定到 sha256 digest：#{reference}"
+      errors << [file, number, reference]
+      next
+    end
+
     action, separator, revision = reference.rpartition("@")
     next if separator == "@" && !action.empty? && FULL_COMMIT_SHA.match?(revision)
 
@@ -31,7 +40,7 @@ files.each do |file|
 end
 
 if errors.empty?
-  puts "已验证 #{external_references} 个外部 GitHub Action 引用，全部固定到完整 Commit SHA。"
+  puts "已验证 #{external_references} 个外部 Action 引用，全部固定到 Commit SHA 或容器 digest。"
   exit 0
 end
 
