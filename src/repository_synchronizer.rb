@@ -14,15 +14,25 @@ module SyncLabels
     end
 
     def sync(full_name)
+      counts = SyncResult.zero
+      @output.puts "::group::#{full_name}"
+      sync_repository(full_name, counts)
+    rescue RepositorySyncError
+      raise
+    rescue StandardError => error
+      raise RepositorySyncError.new(error.message, counts: counts), cause: error
+    ensure
+      @output.puts "::endgroup::"
+    end
+
+    private
+
+    def sync_repository(full_name, counts)
       path = LabelIdentity.repository_path(full_name)
       existing = @api.paginate("/repos/#{path}/labels")
       labels_by_name = existing.to_h { |label| [LabelIdentity.key(label["name"]), label] }
 
       desired_keys = @config.labels.map { |label| LabelIdentity.key(label["name"]) }.to_set
-
-      counts = SyncResult.zero
-
-      @output.puts "::group::#{full_name}"
 
       @config.labels.each do |desired|
         desired_name = desired["name"]
@@ -119,14 +129,8 @@ module SyncLabels
         counts.preserved += 1
       end
 
-      @output.puts "::endgroup::"
       counts
-    rescue StandardError
-      @output.puts "::endgroup::"
-      raise
     end
-
-    private
 
     def mutate(method, *arguments)
       @api.public_send(method, *arguments) unless @dry_run

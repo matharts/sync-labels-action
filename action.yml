@@ -40,11 +40,41 @@ inputs:
     required: false
     default: "https://api.github.com"
 
+outputs:
+  changed:
+    description: "是否检测到或执行了任何新建、更新、重命名或删除"
+    value: ${{ steps.sync.outputs.changed }}
+  repositories:
+    description: "本次处理的仓库数量"
+    value: ${{ steps.sync.outputs.repositories }}
+  created:
+    description: "新建标签总数"
+    value: ${{ steps.sync.outputs.created }}
+  updated:
+    description: "更新标签总数"
+    value: ${{ steps.sync.outputs.updated }}
+  renamed:
+    description: "重命名标签总数"
+    value: ${{ steps.sync.outputs.renamed }}
+  deleted:
+    description: "删除标签总数"
+    value: ${{ steps.sync.outputs.deleted }}
+  unchanged:
+    description: "无需变更的受管标签总数"
+    value: ${{ steps.sync.outputs.unchanged }}
+  preserved:
+    description: "保留的仓库扩展标签总数"
+    value: ${{ steps.sync.outputs.preserved }}
+  failures:
+    description: "同步失败的仓库数量"
+    value: ${{ steps.sync.outputs.failures }}
+
 runs:
   using: "composite"
 
   steps:
     - name: Validate policy and synchronize labels
+      id: sync
       shell: bash
       env:
         SYNC_LABELS_TOKEN: ${{ inputs.token }}
