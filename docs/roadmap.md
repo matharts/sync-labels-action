@@ -8,13 +8,13 @@
 
 项目一次只交付一个次版本。条件版本的 Milestone 保留预期顺序，但不承诺发布日期或最终范围。
 
-| 版本                                                                   | 状态                 | 主要结果                             | 启动条件                       |
-| ---------------------------------------------------------------------- | -------------------- | ------------------------------------ | ------------------------------ |
-| [`v1.4.0`](https://github.com/matharts/sync-labels-action/milestone/1) | 已发布               | Node.js 24 与整次运行删除保护        | 已完成生产验证                 |
-| [`v1.5.0`](https://github.com/matharts/sync-labels-action/milestone/2) | 当前版本，候选演练中 | 限定仓库范围，并离线校验配置         | `v1.5.0-rc.1` 已发布           |
-| [`v1.6.0`](https://github.com/matharts/sync-labels-action/milestone/3) | 条件版本             | 提供稳定、可自动处理的故障诊断       | 真实故障样本证明现有报告不足   |
-| [`v1.7.0`](https://github.com/matharts/sync-labels-action/milestone/4) | 条件版本             | 输出可长期归档和比较的运行计划       | 实际使用方提出审计或审批需求   |
-| [`v1.8.0`](https://github.com/matharts/sync-labels-action/milestone/5) | 条件版本             | 根据代表性运行数据降低多仓库同步时间 | 测量证明串行网络等待是主要瓶颈 |
+| 版本                                                                   | 状态     | 主要结果                             | 启动条件                       |
+| ---------------------------------------------------------------------- | -------- | ------------------------------------ | ------------------------------ |
+| [`v1.4.0`](https://github.com/matharts/sync-labels-action/milestone/1) | 已发布   | Node.js 24 与整次运行删除保护        | 已完成生产验证                 |
+| [`v1.5.0`](https://github.com/matharts/sync-labels-action/milestone/2) | 已发布   | 限定仓库范围，并离线校验配置         | 已完成生产验证                 |
+| [`v1.6.0`](https://github.com/matharts/sync-labels-action/milestone/3) | 条件版本 | 提供稳定、可自动处理的故障诊断       | 真实故障样本证明现有报告不足   |
+| [`v1.7.0`](https://github.com/matharts/sync-labels-action/milestone/4) | 条件版本 | 输出可长期归档和比较的运行计划       | 实际使用方提出审计或审批需求   |
+| [`v1.8.0`](https://github.com/matharts/sync-labels-action/milestone/5) | 条件版本 | 根据代表性运行数据降低多仓库同步时间 | 测量证明串行网络等待是主要瓶颈 |
 
 条件版本只有在启动信号满足后才确定范围和日期。安全修复、GitHub 应用程序编程接口（API）不兼容和当前版本回归可以直接进入补丁版本。
 
@@ -30,9 +30,9 @@
 
 若状态标签与依赖摘要不一致，应在分诊时修正标签。不要为绕过依赖而修改路线图。
 
-## 当前兼容基线：v1.4.0
+## 兼容基线：v1.4.0
 
-`v1.4.0` 是当前公开版本。后续版本必须保持以下契约，除非单独完成兼容性决策：
+`v1.4.0` 建立以下兼容契约。后续版本必须保持这些契约，除非单独完成兼容性决策：
 
 - 默认使用 dry-run（预览），并区分组织受管标签和仓库扩展标签
 - 规划创建、更新、重命名、删除、未变化和保留操作
@@ -44,9 +44,9 @@
 
 完整交付内容和生产验证证据由 [`v1.4.0` Release](https://github.com/matharts/sync-labels-action/releases/tag/v1.4.0)和已关闭的 [`v1.4.0` Milestone](https://github.com/matharts/sync-labels-action/milestone/1?closed=1)保存。
 
-## 当前版本：v1.5.0（候选演练中）
+## 当前稳定版本：v1.5.0
 
-`v1.5.0-rc.1` 已发布并固定到候选提交，下一步是完成仓库范围、离线校验和现有 workflow 兼容性演练。`v1.5.0` 让维护者排除不应同步的仓库，并在不提供 GitHub 凭据、不访问网络的情况下验证标签和仓库策略。
+[`v1.5.0`](https://github.com/matharts/sync-labels-action/releases/tag/v1.5.0) 已在仓库范围、离线校验和现有 workflow 兼容性演练通过后发布；对应 [Milestone](https://github.com/matharts/sync-labels-action/milestone/2?closed=1) 已关闭。该版本让维护者排除不应同步的仓库，并在不提供 GitHub 凭据、不访问网络的情况下验证标签和仓库策略。
 
 ### 已交付功能
 
@@ -67,7 +67,7 @@
 
 ### 版本任务
 
-功能 Issue 和候选版本已落地；剩余工作只涉及生产演练和正式发布。#32 当前可执行，#33 继续由原生 Issue 依赖关系阻塞。
+`v1.5.0` 的功能、生产演练和正式发布任务均已完成。
 
 | Issue                                                                                  | 代码状态 | 证据或下一步                                                          |
 | -------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------- |
@@ -76,8 +76,8 @@
 | [#43 `changed` 输出契约](https://github.com/matharts/sync-labels-action/issues/43)     | 已完成   | 预览与写入语义、Action metadata、摘要和契约测试已由 PR #48 统一       |
 | [#30 本地配置校验命令](https://github.com/matharts/sync-labels-action/issues/30)       | 已实现   | 复用 `GovernanceConfig` 的 `pnpm validate:config` 已由 PR #49 交付    |
 | [#31 准备候选版本](https://github.com/matharts/sync-labels-action/issues/31)           | 已完成   | PR #57 准备 `v1.5.0-rc.1`，PR #58 将 README 固定到候选提交            |
-| [#32 完成生产演练](https://github.com/matharts/sync-labels-action/issues/32)           | 下一步   | 对候选提交验证范围控制、离线校验和现有 workflow 兼容性                |
-| [#33 发布正式版本](https://github.com/matharts/sync-labels-action/issues/33)           | 等待 #32 | 发布经演练的候选提交，并更新正式版本和固定引用                        |
+| [#32 完成生产演练](https://github.com/matharts/sync-labels-action/issues/32)           | 已完成   | 候选提交通过组织预览、离线校验和现有 workflow 兼容性演练              |
+| [#33 发布正式版本](https://github.com/matharts/sync-labels-action/issues/33)           | 已完成   | 发布 `v1.5.0`，更新固定引用，并通过发布后主分支测试和组织预览         |
 
 ### 架构与质量结果
 
@@ -92,7 +92,7 @@
 | `RunResult` 与 Action 报告 | 通过不可变运行统计派生摘要、计数、失败状态和 `changed`；不提前引入 v1.6 的稳定故障分类                                      | [PR #51](https://github.com/matharts/sync-labels-action/pull/51)、[PR #53](https://github.com/matharts/sync-labels-action/pull/53) |
 | 自动验证                   | Vitest 对 `src/**/*.ts` 强制逐文件语句、分支、函数和行覆盖率均为 100%，任何回退都会使 `pnpm check` 失败                     | [PR #54](https://github.com/matharts/sync-labels-action/pull/54)                                                                   |
 
-### 发布门槛与剩余工作
+### 发布门槛与维护状态
 
 从当前代码和契约测试可验证的门槛已经满足：
 
@@ -104,10 +104,7 @@
 - `changed`、操作计数和失败状态的语义在公开描述和契约测试中一致
 - `src/**/*.ts` 的语句、分支、函数和行覆盖率均按文件达到 100%
 
-发布 `v1.5.0` 前仍须完成：
-
-- 对候选版本完成全组织预览、离线校验和现有 workflow 兼容性演练
-- 确认正式版本指向经过演练的候选提交，并更新正式版本和固定引用
+生产演练、稳定 Release、固定引用及发布后主分支测试和组织预览均已完成。项目继续维护 `v1.5.x`；后续条件版本仅在各自启动信号满足后进入交付。
 
 ### 不属于 v1.5.0
 
