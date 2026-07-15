@@ -13,8 +13,9 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "validate:config": "nub script/validate-config.ts",
     "validate:pins": "nub script/validate-action-pins.ts",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm validate:pins"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm validate:config && pnpm validate:pins"
   },
   "dependencies": {
     "@actions/core": "3.0.1",
