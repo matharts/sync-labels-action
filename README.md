@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: matharts/sync-labels-action@165be87c1b605e3fb424ea0072c4d4d5d5a55e41
+      - uses: matharts/sync-labels-action@11039da59fdc15983c66c71d03c8cbf8217f6c6b
         with:
           token: ${{ secrets.SYNC_LABELS_TOKEN }}
           owner: ${{ github.repository_owner }}
@@ -154,7 +154,7 @@ repositories:
 
 ```yaml
 - id: labels
-  uses: matharts/sync-labels-action@165be87c1b605e3fb424ea0072c4d4d5d5a55e41
+  uses: matharts/sync-labels-action@11039da59fdc15983c66c71d03c8cbf8217f6c6b
   with:
     token: ${{ secrets.SYNC_LABELS_TOKEN }}
     owner: ${{ github.repository_owner }}
