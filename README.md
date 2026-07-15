@@ -334,9 +334,9 @@ MathArts 的策略省略 `repositories.include`，因此预览和写入会覆盖
 
 ## 开发和测试
 
-核心代码按 Plan / Apply 分层：
+核心代码围绕 Action 调用和 Plan / Apply 分层：
 
-- [`Application`](src/application.ts) 先规划整次运行、执行安全检查，再隔离执行失败
+- [Action 调用](src/action.ts) 通过一个接口完成模式选择、配置加载、仓库选择、整次规划、执行和 Action 报告发布
 - [`RunPlan`](src/run-plan.ts) 冻结每仓库计划和规划失败，并执行整次运行删除检查
 - [`SyncPlanner`](src/sync-planner.ts) 根据现有标签和配置生成计划
 - [`SyncPlan`](src/sync-plan.ts) 校验并冻结计划
