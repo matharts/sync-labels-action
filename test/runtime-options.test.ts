@@ -22,7 +22,7 @@ describe("RuntimeOptions", () => {
     ["off", false],
     [" TRUE ", true],
   ])("parses dry-run value %j", (input, expected) => {
-    expect(load({ SYNC_LABELS_DRY_RUN: input }).dryRun).toBe(expected);
+    expect(load({ SYNC_LABELS_DRY_RUN: input }).mode).toBe(expected ? "preview" : "apply");
   });
 
   it("rejects invalid booleans before doing any work", () => {
@@ -36,13 +36,36 @@ describe("RuntimeOptions", () => {
     expect(() => load({ SYNC_LABELS_OWNER: "" })).toThrow("SYNC_LABELS_OWNER 不能为空。");
 
     expect(load()).toEqual({
+      mode: "preview",
       token: "test-token",
       owner: "matharts",
       configFile: ".github/labels.yml",
       policyFile: ".github/label-policy.yml",
       onlyRepository: "",
       apiUrl: "https://api.github.com",
-      dryRun: true,
     });
+  });
+
+  it("loads validation mode without credentials or synchronization-only inputs", () => {
+    expect(
+      RuntimeOptions.load({
+        SYNC_LABELS_VALIDATE_ONLY: "true",
+        SYNC_LABELS_TOKEN: "",
+        SYNC_LABELS_OWNER: "",
+        SYNC_LABELS_DRY_RUN: "not-a-boolean",
+        SYNC_LABELS_CONFIG_FILE: "config.yml",
+        SYNC_LABELS_POLICY_FILE: "policy.yml",
+      }),
+    ).toEqual({
+      mode: "validate",
+      configFile: "config.yml",
+      policyFile: "policy.yml",
+    });
+  });
+
+  it("rejects an invalid validate-only boolean", () => {
+    expect(() => load({ SYNC_LABELS_VALIDATE_ONLY: "sometimes" })).toThrow(
+      "SYNC_LABELS_VALIDATE_ONLY 必须是 true/false、1/0、yes/no 或 on/off。",
+    );
   });
 });

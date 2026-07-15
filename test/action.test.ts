@@ -62,9 +62,20 @@ interface ActionScenario {
   readonly policy: string;
   readonly dryRun: boolean;
   readonly client: GitHubPort;
+  readonly validateOnly?: boolean;
+  readonly token?: string;
+  readonly owner?: string;
 }
 
-async function runScenario({ labels, policy, dryRun, client }: ActionScenario) {
+async function runScenario({
+  labels,
+  policy,
+  dryRun,
+  client,
+  validateOnly = false,
+  token = "test-token",
+  owner = "matharts",
+}: ActionScenario) {
   const directory = await mkdtemp(join(tmpdir(), "sync-labels-action-"));
   temporaryDirectories.push(directory);
   const labelsPath = join(directory, "labels.yml");
@@ -73,11 +84,12 @@ async function runScenario({ labels, policy, dryRun, client }: ActionScenario) {
   await writeFile(policyPath, policy, "utf8");
 
   const inputs: Record<string, string> = {
-    token: "test-token",
-    owner: "matharts",
+    token,
+    owner,
     config_file: labelsPath,
     policy_file: policyPath,
     dry_run: String(dryRun),
+    validate_only: String(validateOnly),
     repository: "",
     api_url: "https://api.github.com",
   };
@@ -85,9 +97,11 @@ async function runScenario({ labels, policy, dryRun, client }: ActionScenario) {
   const summaries: string[] = [];
   const failures: string[] = [];
   const logs: string[] = [];
+  const secrets: string[] = [];
+  let clientCreations = 0;
   const runtime: ActionRuntime = {
     getInput: (name) => inputs[name] ?? "",
-    setSecret: () => {},
+    setSecret: (value) => secrets.push(value),
     setOutput: (name, value) => outputs.set(name, value),
     writeSummary: async (markdown) => {
       summaries.push(markdown);
@@ -99,9 +113,14 @@ async function runScenario({ labels, policy, dryRun, client }: ActionScenario) {
     endGroup: () => {},
   };
 
-  await runAction(runtime, { createClient: () => client });
+  await runAction(runtime, {
+    createClient: () => {
+      clientCreations += 1;
+      return client;
+    },
+  });
 
-  return { outputs, summary: summaries.join("\n"), failures, logs };
+  return { outputs, summary: summaries.join("\n"), failures, logs, secrets, clientCreations };
 }
 
 const BUG_LABEL = '- name: "type: bug"\n  color: "D73A4A"\n';
@@ -109,6 +128,76 @@ const BUG_POLICY =
   'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\nrepositories:\n  include: [example]\n';
 
 describe("runAction", () => {
+  it("validates configuration offline without credentials or a GitHub client", async () => {
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: true,
+      validateOnly: true,
+      token: "",
+      owner: "",
+      client: new FakeClient(),
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.clientCreations).toBe(0);
+    expect(result.secrets).toEqual([]);
+    expect(result.logs).toContain("配置校验通过，未访问 GitHub API。");
+    expect(result.summary).toContain("# 配置校验结果");
+    expect(result.summary).toContain("- GitHub API 请求：`0`");
+    expect(Object.fromEntries(result.outputs)).toEqual({
+      repositories: 0,
+      changed: false,
+      created: 0,
+      updated: 0,
+      renamed: 0,
+      deleted: 0,
+      unchanged: 0,
+      preserved: 0,
+      failures: 0,
+    });
+  });
+
+  it("reports shared configuration errors in validation mode without creating a client", async () => {
+    const result = await runScenario({
+      labels: '- name: "type: bug"\n  color: "D73A4A"\n  aliases: [bug]\n',
+      policy: BUG_POLICY,
+      dryRun: true,
+      validateOnly: true,
+      token: "",
+      owner: "",
+      client: new FakeClient(),
+    });
+
+    expect(result.clientCreations).toBe(0);
+    expect(result.secrets).toEqual([]);
+    expect(result.summary).toBe("");
+    expect(result.outputs.size).toBe(0);
+    expect(result.failures[0]).toContain("标签 aliases 必须同时登记到策略 legacy_names：bug");
+  });
+
+  it("still requires credentials in preview and apply modes", async () => {
+    const missingToken = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: true,
+      token: "",
+      client: new FakeClient(),
+    });
+    const missingOwner = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: false,
+      owner: "",
+      client: new FakeClient(),
+    });
+
+    expect(missingToken.failures).toEqual(["SYNC_LABELS_TOKEN 不能为空。"]);
+    expect(missingOwner.failures).toEqual(["SYNC_LABELS_OWNER 不能为空。"]);
+    expect(missingToken.clientCreations).toBe(0);
+    expect(missingOwner.clientCreations).toBe(0);
+  });
+
   it("reports deletion risk without changing execution outputs when safety blocks apply", async () => {
     const client = new FakeClient({
       labels: () => [

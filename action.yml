@@ -8,12 +8,12 @@ branding:
 
 inputs:
   token:
-    description: "可以读取组织仓库并管理仓库标签的令牌"
-    required: true
+    description: "同步模式必需；可以读取组织仓库并管理仓库标签的令牌"
+    required: false
 
   owner:
-    description: "需要同步的 GitHub 组织名称"
-    required: true
+    description: "同步模式必需；需要同步的 GitHub 组织名称"
+    required: false
 
   config_file:
     description: "权威标签配置文件路径"
@@ -29,6 +29,11 @@ inputs:
     description: "仅预览变更，不实际修改标签"
     required: false
     default: "true"
+
+  validate_only:
+    description: "只离线校验标签和策略配置；不需要 token 或 owner，也不访问 GitHub API"
+    required: false
+    default: "false"
 
   repository:
     description: "只同步指定仓库；必须满足 repositories.include 和 repositories.exclude 规则"

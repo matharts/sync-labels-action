@@ -72,6 +72,21 @@ export function renderSummary(runResult: RunResult, context: SummaryContext): st
   return `${lines.join("\n")}\n`;
 }
 
+export function renderValidationSummary(context: {
+  readonly configFile: string;
+  readonly policyFile: string;
+}): string {
+  return [
+    "# 配置校验结果",
+    "",
+    "- 状态：`通过`",
+    `- 标签配置：\`${context.configFile}\``,
+    `- 同步策略：\`${context.policyFile}\``,
+    "- GitHub API 请求：`0`",
+    "",
+  ].join("\n");
+}
+
 export function actionOutputs(runResult: RunResult): ActionOutputs {
   const totals = runResult.totals;
   return {
@@ -84,6 +99,20 @@ export function actionOutputs(runResult: RunResult): ActionOutputs {
     unchanged: totals.unchanged,
     preserved: totals.preserved,
     failures: runResult.failures.length,
+  };
+}
+
+export function validationOutputs(): ActionOutputs {
+  return {
+    repositories: 0,
+    changed: false,
+    created: 0,
+    updated: 0,
+    renamed: 0,
+    deleted: 0,
+    unchanged: 0,
+    preserved: 0,
+    failures: 0,
   };
 }
 
