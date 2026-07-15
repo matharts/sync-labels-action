@@ -5,7 +5,7 @@ import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 
 describe("action metadata", () => {
-  it("declares the v1.4.0 release candidate on Node 24 with the stable v1.3 interface", async () => {
+  it("declares v1.4.0 on Node 24 with the stable v1.3 interface", async () => {
     const packageMetadata = JSON.parse(
       await readFile(join(process.cwd(), "package.json"), "utf8"),
     ) as { version: string };
@@ -25,7 +25,7 @@ describe("action metadata", () => {
       "failures",
     ];
 
-    expect(packageMetadata.version).toBe("1.4.0-rc.1");
+    expect(packageMetadata.version).toBe("1.4.0");
     expect(metadata.runs).toEqual({ using: "node24", main: "dist/index.js" });
     expect(Object.keys(metadata.outputs).sort()).toEqual(outputNames.sort());
     for (const output of Object.values(metadata.outputs)) {
