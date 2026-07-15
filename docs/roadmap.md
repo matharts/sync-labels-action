@@ -90,7 +90,7 @@ GitHub 原生 Issue 依赖关系是规范顺序：
 3. 在 #28 和 #30 完成后处理 [#31 候选版本](https://github.com/matharts/sync-labels-action/issues/31)
 4. 依次完成 [#32 仓库范围与离线校验演练](https://github.com/matharts/sync-labels-action/issues/32) 和 [#33 正式发布](https://github.com/matharts/sync-labels-action/issues/33)
 
-`v1.5.0` 不改变现有 output 语义：preview 的计数和 `changed` 反映完整计划，apply 只反映已经完成的操作；安全检查在首个写请求前阻止 apply 时，`changed` 保持 `false`。Action metadata、README 和测试必须使用这一表述。
+`changed` 的规范含义是候选版本前必须完成的兼容性决策。当前实现中，preview 的计数和 `changed` 反映完整计划，apply 只反映已经完成的操作，安全检查阻止 apply 时 `changed` 为 `false`；Action metadata 同时把它描述为“检测到或执行了”变更。项目必须选定一个规范含义、评估现有使用方的兼容性，并同步实现、Action metadata、README 和测试。只修正文档时保持现有运行行为；如需改变既有 output 行为，应单独确定版本边界。
 
 ### v1.5.0 验收条件
 
@@ -192,8 +192,6 @@ GitHub 原生 Issue 依赖关系是规范顺序：
 路线图只维护版本边界和顺序。GitHub Milestone 管理版本，GitHub Issues 保存产品需求、实现任务和验收证据：
 
 - 每个实现 Issue 由一个聚焦的 Pull Request 完成
-- GitHub 原生依赖关系决定 Issue 是否被阻塞，`status:*` 标签必须随依赖变化同步更新
-- `docs/agents/triage-labels.md` 中的分诊角色必须映射到仓库实际存在的标签
 - 发布演练、文档同步和正式发布分别跟踪
 - 每个次版本先发布候选版本，再完成对应的运行演练
 - 补丁版本只处理回归、安全修复和 GitHub API 兼容问题
