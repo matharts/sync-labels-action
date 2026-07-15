@@ -1,13 +1,8 @@
 import { Application, type ActionLogger } from "./application";
+import { ActionReport } from "./action-report";
 import { GitHubClient } from "./github-client";
 import type { GitHubPort } from "./github-port";
 import { GovernanceConfig } from "./governance-config";
-import {
-  actionOutputs,
-  renderSummary,
-  renderValidationSummary,
-  validationOutputs,
-} from "./reporting";
 import { RuntimeOptions } from "./runtime-options";
 
 export interface ActionRuntime extends ActionLogger {
@@ -29,6 +24,9 @@ export async function runAction(
   runtime: ActionRuntime,
   dependencies: ActionDependencies = {},
 ): Promise<void> {
+  let report: ActionReport;
+  let successMessage: string | undefined;
+
   try {
     const options = RuntimeOptions.load({
       SYNC_LABELS_TOKEN: runtime.getInput("token"),
@@ -50,59 +48,69 @@ export async function runAction(
       runtime.info(`Config: ${options.configFile}`);
       runtime.info(`Policy: ${options.policyFile}`);
       runtime.info("配置校验通过，未访问 GitHub API。");
-      await runtime.writeSummary(renderValidationSummary(options));
-      setOutputs(runtime, validationOutputs());
-      return;
-    }
+      report = ActionReport.validation({
+        configFile: options.configFile,
+        policyFile: options.policyFile,
+      });
+    } else {
+      runtime.setSecret(options.token);
+      const client =
+        dependencies.createClient?.({ token: options.token, baseUrl: options.apiUrl }) ??
+        new GitHubClient({ token: options.token, baseUrl: options.apiUrl });
+      const repositories = await config.repositoryScope.select(client, {
+        owner: options.owner,
+        onlyRepository: options.onlyRepository,
+      });
 
-    runtime.setSecret(options.token);
-    const client =
-      dependencies.createClient?.({ token: options.token, baseUrl: options.apiUrl }) ??
-      new GitHubClient({ token: options.token, baseUrl: options.apiUrl });
-    const repositories = await config.repositoryScope.select(client, {
-      owner: options.owner,
-      onlyRepository: options.onlyRepository,
-    });
+      runtime.info(`Owner: ${options.owner}`);
+      runtime.info(`Config: ${options.configFile}`);
+      runtime.info(`Policy: ${options.policyFile}`);
+      runtime.info(`Dry run: ${String(options.mode === "preview")}`);
+      runtime.info(`Repositories: ${repositories.length}`);
+      runtime.info("");
 
-    runtime.info(`Owner: ${options.owner}`);
-    runtime.info(`Config: ${options.configFile}`);
-    runtime.info(`Policy: ${options.policyFile}`);
-    runtime.info(`Dry run: ${String(options.mode === "preview")}`);
-    runtime.info(`Repositories: ${repositories.length}`);
-    runtime.info("");
+      const result = await new Application({
+        client,
+        config,
+        dryRun: options.mode === "preview",
+        logger: runtime,
+      }).run(repositories);
 
-    const result = await new Application({
-      client,
-      config,
-      dryRun: options.mode === "preview",
-      logger: runtime,
-    }).run(repositories);
-
-    await runtime.writeSummary(
-      renderSummary(result, {
+      report = ActionReport.synchronization(result, {
         owner: options.owner,
         configFile: options.configFile,
         policyFile: options.policyFile,
-      }),
-    );
-    setOutputs(runtime, actionOutputs(result));
-
-    if (!result.success) {
-      runtime.setFailed(`${result.failures.length} 个仓库同步失败。`);
-      return;
+      });
+      if (report.completion.status === "success") {
+        successMessage = result.mode === "preview" ? "Dry Run 完成。" : "标签同步完成。";
+      }
     }
-    runtime.info(result.mode === "preview" ? "Dry Run 完成。" : "标签同步完成。");
   } catch (error) {
-    runtime.setFailed(errorMessage(error));
+    report = ActionReport.failure(error);
   }
+
+  if (!(await publishActionReport(runtime, report))) return;
+  if (successMessage !== undefined) runtime.info(successMessage);
 }
 
-function setOutputs(runtime: ActionRuntime, outputs: object): void {
-  for (const [name, value] of Object.entries(outputs)) {
-    runtime.setOutput(name, value);
+async function publishActionReport(runtime: ActionRuntime, report: ActionReport): Promise<boolean> {
+  try {
+    if (report.publication !== null) {
+      await runtime.writeSummary(report.publication.summary);
+      for (const [name, value] of Object.entries(report.publication.outputs)) {
+        runtime.setOutput(name, value);
+      }
+    }
+  } catch (error) {
+    const publicationFailure = ActionReport.failure(error);
+    if (publicationFailure.completion.status === "failure") {
+      runtime.setFailed(publicationFailure.completion.message);
+    }
+    return false;
   }
-}
 
-function errorMessage(value: unknown): string {
-  return value instanceof Error ? value.message : String(value);
+  if (report.completion.status === "failure") {
+    runtime.setFailed(report.completion.message);
+  }
+  return true;
 }

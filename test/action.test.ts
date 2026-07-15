@@ -62,6 +62,7 @@ interface ActionScenario {
   readonly policy: string;
   readonly dryRun: boolean;
   readonly client: GitHubPort;
+  readonly outputFailure?: Error;
   readonly validateOnly?: boolean;
   readonly token?: string;
   readonly owner?: string;
@@ -72,6 +73,7 @@ async function runScenario({
   policy,
   dryRun,
   client,
+  outputFailure,
   validateOnly = false,
   token = "test-token",
   owner = "matharts",
@@ -99,10 +101,15 @@ async function runScenario({
   const logs: string[] = [];
   const secrets: string[] = [];
   let clientCreations = 0;
+  let outputAttempts = 0;
   const runtime: ActionRuntime = {
     getInput: (name) => inputs[name] ?? "",
     setSecret: (value) => secrets.push(value),
-    setOutput: (name, value) => outputs.set(name, value),
+    setOutput: (name, value) => {
+      outputAttempts += 1;
+      if (outputFailure !== undefined) throw outputFailure;
+      outputs.set(name, value);
+    },
     writeSummary: async (markdown) => {
       summaries.push(markdown);
     },
@@ -120,7 +127,15 @@ async function runScenario({
     },
   });
 
-  return { outputs, summary: summaries.join("\n"), failures, logs, secrets, clientCreations };
+  return {
+    outputs,
+    summary: summaries.join("\n"),
+    failures,
+    logs,
+    secrets,
+    clientCreations,
+    outputAttempts,
+  };
 }
 
 const BUG_LABEL = '- name: "type: bug"\n  color: "D73A4A"\n';
@@ -156,6 +171,22 @@ describe("runAction", () => {
       preserved: 0,
       failures: 0,
     });
+  });
+
+  it("stops publication after an output error and records that failure once", async () => {
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: true,
+      validateOnly: true,
+      client: new FakeClient(),
+      outputFailure: new Error("simulated output publication failure"),
+    });
+
+    expect(result.summary).toContain("# 配置校验结果");
+    expect(result.outputAttempts).toBe(1);
+    expect(result.outputs.size).toBe(0);
+    expect(result.failures).toEqual(["simulated output publication failure"]);
   });
 
   it("reports shared configuration errors in validation mode without creating a client", async () => {
