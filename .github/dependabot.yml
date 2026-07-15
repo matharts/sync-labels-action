@@ -1,6 +1,18 @@
 version: 2
 
 updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    labels:
+      - "type: dependencies"
+    commit-message:
+      prefix: "deps"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
