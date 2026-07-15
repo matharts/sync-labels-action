@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { GitHubClient, type HttpRequest, type HttpResponse } from "../src/github-client";
 
@@ -53,6 +53,12 @@ describe("GitHubClient", () => {
     expect(() => new GitHubClient({ token: "token", baseUrl: "http://api.example.test" })).toThrow("HTTPS");
     expect(() => new GitHubClient({ token: "token", baseUrl: "https://user@api.example.test" })).toThrow(
       "不能包含凭据",
+    );
+    expect(() => new GitHubClient({ token: "token", baseUrl: "https://api.example.test?" })).toThrow(
+      "不能包含凭据、查询参数或片段",
+    );
+    expect(() => new GitHubClient({ token: "token", baseUrl: "https://api.example.test#" })).toThrow(
+      "不能包含凭据、查询参数或片段",
     );
   });
 
@@ -145,6 +151,70 @@ describe("GitHubClient", () => {
       aliases: [],
     })).rejects.toBe(timeout);
     expect(attempts).toBe(1);
+  });
+
+  it("does not retry permanent fetch TypeErrors", async () => {
+    let attempts = 0;
+    const tlsError = new TypeError("fetch failed", {
+      cause: Object.assign(new Error("self-signed certificate"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }),
+    });
+    const client = new GitHubClient({
+      token: "token",
+      baseUrl: "https://api.example.test",
+      requester: async () => {
+        attempts += 1;
+        throw tlsError;
+      },
+      sleeper: async () => {},
+      warning: () => {},
+      maxRetries: 3,
+    });
+
+    await expect(client.listLabels("matharts/example")).rejects.toBe(tlsError);
+    expect(attempts).toBe(1);
+  });
+
+  it("retries transient fetch errors identified by their cause", async () => {
+    let attempts = 0;
+    const delays: number[] = [];
+    const timeout = new TypeError("fetch failed", {
+      cause: Object.assign(new Error("connection timed out"), { code: "ETIMEDOUT" }),
+    });
+    const client = new GitHubClient({
+      token: "token",
+      baseUrl: "https://api.example.test",
+      requester: async () => {
+        attempts += 1;
+        if (attempts === 1) throw timeout;
+        return { status: 200, headers: {}, body: "[]" };
+      },
+      sleeper: async (delay) => { delays.push(delay); },
+      warning: () => {},
+      maxRetries: 1,
+    });
+
+    await expect(client.listLabels("matharts/example")).resolves.toEqual([]);
+    expect(attempts).toBe(2);
+    expect(delays).toEqual([1]);
+  });
+
+  it("surfaces redirect responses instead of following them", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (init?.redirect === "manual") {
+        return new Response('{"message":"redirected"}', {
+          status: 307,
+          headers: { location: "https://api.example.test/redirected" },
+        });
+      }
+      return new Response("[]", { status: 200 });
+    });
+    const client = new GitHubClient({ token: "token", baseUrl: "https://api.example.test" });
+
+    try {
+      await expect(client.listLabels("matharts/example")).rejects.toThrow("Status: 307");
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
   it("encapsulates mutation paths and payloads", async () => {

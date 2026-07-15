@@ -45,6 +45,17 @@ interface GitHubClientOptions {
 const DEFAULT_MAX_RETRIES = 3;
 const MAX_RETRY_DELAY = 60;
 const MAX_ERROR_MESSAGE_LENGTH = 500;
+const TRANSIENT_NETWORK_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+  "ENOTFOUND",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
+const TRANSIENT_NETWORK_ERROR_NAMES = new Set(["AbortError", "TimeoutError"]);
 
 export class GitHubClient implements GitHubClientPort {
   readonly #token: string;
@@ -64,7 +75,8 @@ export class GitHubClient implements GitHubClientPort {
     if (baseUrl.protocol !== "https:" || baseUrl.hostname.length === 0) {
       throw new TypeError("GitHub API 地址必须是有效的 HTTPS URL。");
     }
-    if (baseUrl.username.length > 0 || baseUrl.password.length > 0 || baseUrl.search.length > 0 || baseUrl.hash.length > 0) {
+    const hasQueryOrFragment = baseUrl.href.includes("?") || baseUrl.href.includes("#");
+    if (baseUrl.username.length > 0 || baseUrl.password.length > 0 || hasQueryOrFragment) {
       throw new TypeError("GitHub API 地址不能包含凭据、查询参数或片段。");
     }
 
@@ -74,7 +86,7 @@ export class GitHubClient implements GitHubClientPort {
     }
 
     this.#token = options.token;
-    this.#baseUrl = options.baseUrl.replace(/\/$/, "");
+    this.#baseUrl = baseUrl.href.replace(/\/$/, "");
     this.#requester = options.requester ?? performRequest;
     this.#sleeper = options.sleeper ?? sleep;
     this.#warning = options.warning ?? console.warn;
@@ -212,6 +224,7 @@ async function performRequest(request: HttpRequest): Promise<HttpResponse> {
   const init: RequestInit = {
     method: request.method,
     headers: request.headers,
+    redirect: "manual",
     signal: AbortSignal.timeout(60_000),
   };
   if (request.body !== undefined) init.body = request.body;
@@ -301,9 +314,14 @@ function responseHeader(response: HttpResponse, name: string): string {
 
 function isTransientNetworkError(value: unknown): boolean {
   if (!(value instanceof Error)) return false;
-  const code = "code" in value ? String(value.code) : "";
-  return ["ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EAI_AGAIN", "ENETUNREACH"].includes(code) ||
-    ["AbortError", "TimeoutError", "TypeError"].includes(value.name);
+  return TRANSIENT_NETWORK_ERROR_NAMES.has(value.name) ||
+    TRANSIENT_NETWORK_ERROR_CODES.has(errorCode(value)) ||
+    TRANSIENT_NETWORK_ERROR_CODES.has(errorCode(value.cause));
+}
+
+function errorCode(value: unknown): string {
+  if (typeof value !== "object" || value === null || !("code" in value)) return "";
+  return typeof value.code === "string" ? value.code : "";
 }
 
 function errorName(value: unknown): string {
