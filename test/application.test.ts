@@ -25,17 +25,21 @@ describe("Application", () => {
         operations.push(`plan:${fullName}`);
         return existing[fullName] ?? [];
       },
-      async createLabel(fullName, desired) { operations.push(`create:${fullName}:${desired.name}`); },
+      async createLabel(fullName, desired) {
+        operations.push(`create:${fullName}:${desired.name}`);
+      },
       async updateLabel() {},
       async deleteLabel() {},
     };
     const config: PlanningConfig = {
-      labels: [{
-        name: "type: feature",
-        color: "A2EEEF",
-        description: "feature",
-        aliases: ["enhancement", "feature"],
-      }],
+      labels: [
+        {
+          name: "type: feature",
+          color: "A2EEEF",
+          description: "feature",
+          aliases: ["enhancement", "feature"],
+        },
+      ],
       managed: () => true,
     };
     const logger: ActionLogger = {
@@ -71,7 +75,9 @@ describe("Application", () => {
       },
       async createLabel() {},
       async updateLabel() {},
-      async deleteLabel(fullName, name) { operations.push(`delete:${fullName}:${name}`); },
+      async deleteLabel(fullName, name) {
+        operations.push(`delete:${fullName}:${name}`);
+      },
     };
     const config = {
       labels: [{ name: "type: bug", color: "D73A4A", description: "bug", aliases: [] }],
@@ -86,14 +92,14 @@ describe("Application", () => {
     };
     const application = new Application({ client, config, dryRun: false, logger });
 
-    const result = await application.run([
-      repository("matharts/one"),
-      repository("matharts/two"),
-    ]);
+    const result = await application.run([repository("matharts/one"), repository("matharts/two")]);
 
     expect(operations).toEqual(["plan:matharts/one", "plan:matharts/two"]);
     expect(result.failures).toHaveLength(2);
-    expect(result.failures[0]).toMatchObject({ phase: "safety", error: expect.stringContaining("总删除操作数 2") });
+    expect(result.failures[0]).toMatchObject({
+      phase: "safety",
+      error: expect.stringContaining("总删除操作数 2"),
+    });
     expect(result.totals).toEqual(zeroCounts());
   });
 

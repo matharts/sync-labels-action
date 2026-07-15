@@ -29,7 +29,13 @@ export class GovernanceConfig implements PlanningConfig {
     Object.freeze(this);
   }
 
-  static async load({ labelsPath, policyPath }: { labelsPath: string; policyPath: string }): Promise<GovernanceConfig> {
+  static async load({
+    labelsPath,
+    policyPath,
+  }: {
+    labelsPath: string;
+    policyPath: string;
+  }): Promise<GovernanceConfig> {
     const labels = loadLabels(await loadYaml(labelsPath, "标签配置文件"), labelsPath);
     const policy = loadPolicy(await loadYaml(policyPath, "标签同步策略文件"), policyPath);
     validateLabelPolicy(labels, policy);
@@ -69,7 +75,9 @@ async function loadYaml(path: string, description: string): Promise<unknown> {
     }
     return convertSafeYamlValue(document.toJS({ maxAliasCount: 0 }));
   } catch (error) {
-    throw new Error(`${description} YAML 无效（${path}）：${errorMessage(error)}`, { cause: error });
+    throw new Error(`${description} YAML 无效（${path}）：${errorMessage(error)}`, {
+      cause: error,
+    });
   }
 }
 
@@ -134,7 +142,11 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
     throw new Error(`${path} 的 YAML 根节点必须是对象。`);
   }
 
-  rejectUnknownKeys(parsed, new Set(["version", "managed", "repositories", "safety"]), `${path} 包含未知根字段`);
+  rejectUnknownKeys(
+    parsed,
+    new Set(["version", "managed", "repositories", "safety"]),
+    `${path} 包含未知根字段`,
+  );
   if (parsed.version !== 1) {
     throw new Error(`${path} 的 version 必须是 1。`);
   }
@@ -185,7 +197,8 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
     prefixes: Object.freeze(prefixes.map(labelKey)),
     exactNames: exactKeys,
     legacyNames: legacyKeys,
-    repositoryNames: repositoryNames === undefined ? undefined : Object.freeze([...repositoryNames]),
+    repositoryNames:
+      repositoryNames === undefined ? undefined : Object.freeze([...repositoryNames]),
     safety,
   });
 }
@@ -248,7 +261,10 @@ function policyStringList(
 }
 
 function validateLabelPolicy(labels: readonly LabelDefinition[], policy: GovernancePolicy): void {
-  const unmanaged = labels.filter(({ name }) => !desiredLabelManaged(name, policy)).map(({ name }) => name).sort();
+  const unmanaged = labels
+    .filter(({ name }) => !desiredLabelManaged(name, policy))
+    .map(({ name }) => name)
+    .sort();
   if (unmanaged.length > 0) {
     throw new Error(`标签配置包含不在组织受管范围内的正式标签：${unmanaged.join(", ")}`);
   }
@@ -275,7 +291,11 @@ function managedLabel(name: string, policy: GovernancePolicy): boolean {
   return desiredLabelManaged(name, policy) || policy.legacyNames.has(labelKey(name));
 }
 
-function rejectUnknownKeys(value: Readonly<Record<string, unknown>>, allowed: ReadonlySet<string>, prefix: string): void {
+function rejectUnknownKeys(
+  value: Readonly<Record<string, unknown>>,
+  allowed: ReadonlySet<string>,
+  prefix: string,
+): void {
   const unknown = Object.keys(value)
     .filter((key) => !allowed.has(key))
     .sort();
@@ -290,7 +310,9 @@ function toArray(value: unknown): unknown[] {
 }
 
 function rubyString(value: unknown): string {
-  return value === undefined || value === null ? "" : String(value);
+  if (value === undefined || value === null) return "";
+  // oxlint-disable-next-line typescript/no-base-to-string -- Preserve the legacy Ruby-compatible YAML coercion behavior.
+  return String(value);
 }
 
 function convertSafeYamlValue(value: unknown): unknown {
@@ -311,7 +333,10 @@ function convertSafeYamlValue(value: unknown): unknown {
       [...value.entries()].map(([key, item]) => [rubyString(key), convertSafeYamlValue(item)]),
     );
   }
-  if (isRecord(value) && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
+  if (
+    isRecord(value) &&
+    (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+  ) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [key, convertSafeYamlValue(item)]),
     );
@@ -329,5 +354,7 @@ function isNodeError(value: unknown): value is NodeJS.ErrnoException {
 }
 
 function errorMessage(value: unknown): string {
-  return value instanceof Error ? value.message : String(value);
+  if (value instanceof Error) return value.message;
+  // oxlint-disable-next-line typescript/no-base-to-string -- Preserve diagnostic text for non-Error throws.
+  return String(value);
 }

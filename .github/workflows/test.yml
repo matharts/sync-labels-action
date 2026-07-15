@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check types, behavior, and immutable Action references
+      - name: Check formatting, lint, types, behavior, and immutable Action references
         run: pnpm check
 
       - name: Build the Action bundle

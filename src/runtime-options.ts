@@ -35,7 +35,9 @@ export class RuntimeOptions {
       configFile: environment.SYNC_LABELS_CONFIG_FILE ?? ".github/labels.yml",
       policyFile: environment.SYNC_LABELS_POLICY_FILE ?? ".github/label-policy.yml",
       onlyRepository: (environment.SYNC_LABELS_REPOSITORY ?? "").trim(),
-      apiUrl: (environment.SYNC_LABELS_API_URL ?? "https://api.github.com").trim().replace(/\/$/, ""),
+      apiUrl: (environment.SYNC_LABELS_API_URL ?? "https://api.github.com")
+        .trim()
+        .replace(/\/$/, ""),
       dryRun: parseBoolean("SYNC_LABELS_DRY_RUN", environment.SYNC_LABELS_DRY_RUN ?? "true"),
     });
   }

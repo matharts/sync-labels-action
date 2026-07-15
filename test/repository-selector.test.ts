@@ -25,7 +25,10 @@ class FakeClient implements RepositoryCatalogPort {
   }
 }
 
-function repository(fullName: string, overrides: Partial<RepositoryMetadata> = {}): RepositoryMetadata {
+function repository(
+  fullName: string,
+  overrides: Partial<RepositoryMetadata> = {},
+): RepositoryMetadata {
   return { fullName, archived: false, disabled: false, fork: false, ...overrides };
 }
 
@@ -39,7 +42,10 @@ describe("RepositorySelector", () => {
 
     const repositories = await selector.select({ owner: "matharts", onlyRepository: "" });
 
-    expect(repositories.map(({ fullName }) => fullName)).toEqual(["matharts/example", "matharts/docs"]);
+    expect(repositories.map(({ fullName }) => fullName)).toEqual([
+      "matharts/example",
+      "matharts/docs",
+    ]);
     expect(client.calls).toEqual(["get:matharts/example", "get:matharts/docs"]);
   });
 
@@ -72,7 +78,10 @@ describe("RepositorySelector", () => {
     const client = new FakeClient({ "matharts/example": repository("matharts/example") });
     const selector = new RepositorySelector(client, { repositoryNames: undefined });
 
-    const repositories = await selector.select({ owner: "matharts", onlyRepository: "matharts/example" });
+    const repositories = await selector.select({
+      owner: "matharts",
+      onlyRepository: "matharts/example",
+    });
 
     expect(repositories.map(({ fullName }) => fullName)).toEqual(["matharts/example"]);
     expect(client.calls).toEqual(["get:matharts/example"]);

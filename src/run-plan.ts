@@ -21,26 +21,28 @@ export class RunPlan {
     }
 
     const repositories = new Set<string>();
-    this.entries = Object.freeze(entries.map((entry) => {
-      if (repositories.has(entry.repository)) {
-        throw new TypeError(`整次运行计划包含重复仓库：${entry.repository}`);
-      }
-      repositories.add(entry.repository);
-
-      if (entry.kind === "planned") {
-        if (!(entry.plan instanceof SyncPlan)) {
-          throw new TypeError(`仓库 ${entry.repository} 缺少已验证的 SyncPlan。`);
+    this.entries = Object.freeze(
+      entries.map((entry) => {
+        if (repositories.has(entry.repository)) {
+          throw new TypeError(`整次运行计划包含重复仓库：${entry.repository}`);
         }
-        return Object.freeze({ ...entry });
-      }
-      if (entry.kind === "planning-failure") {
-        return Object.freeze({ ...entry });
-      }
-      throw new TypeError("整次运行计划包含未知 entry。");
-    }));
-    this.totals = sumCounts(this.entries.flatMap((entry) =>
-      entry.kind === "planned" ? [entry.plan.counts] : []
-    ));
+        repositories.add(entry.repository);
+
+        if (entry.kind === "planned") {
+          if (!(entry.plan instanceof SyncPlan)) {
+            throw new TypeError(`仓库 ${entry.repository} 缺少已验证的 SyncPlan。`);
+          }
+          return Object.freeze({ ...entry });
+        }
+        if (entry.kind === "planning-failure") {
+          return Object.freeze({ ...entry });
+        }
+        throw new TypeError("整次运行计划包含未知 entry。");
+      }),
+    );
+    this.totals = sumCounts(
+      this.entries.flatMap((entry) => (entry.kind === "planned" ? [entry.plan.counts] : [])),
+    );
     Object.freeze(this);
   }
 
@@ -56,8 +58,10 @@ export class RunPlan {
     if (perRepositoryLimit !== undefined) {
       const unsafe = planned.find((entry) => entry.plan.counts.deleted > perRepositoryLimit);
       if (unsafe !== undefined) {
-        return `仓库 ${unsafe.repository} 的删除操作数 ${unsafe.plan.counts.deleted} ` +
-          `超过安全上限 ${perRepositoryLimit}。`;
+        return (
+          `仓库 ${unsafe.repository} 的删除操作数 ${unsafe.plan.counts.deleted} ` +
+          `超过安全上限 ${perRepositoryLimit}。`
+        );
       }
     }
     if (policy.maxDeletionsTotal !== undefined && total > policy.maxDeletionsTotal) {

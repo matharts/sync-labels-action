@@ -27,15 +27,21 @@ export class RunResult {
       throw new TypeError(`运行模式无效：${JSON.stringify(mode)}`);
     }
     this.mode = mode;
-    this.outcomes = Object.freeze(outcomes.map((outcome) => Object.freeze({
-      ...outcome,
-      counts: Object.freeze({ ...outcome.counts }),
-    })));
+    this.outcomes = Object.freeze(
+      outcomes.map((outcome) =>
+        Object.freeze({
+          ...outcome,
+          counts: Object.freeze({ ...outcome.counts }),
+        }),
+      ),
+    );
     Object.freeze(this);
   }
 
   get failures(): readonly RepositoryFailure[] {
-    return Object.freeze(this.outcomes.filter((outcome): outcome is RepositoryFailure => outcome.kind === "failure"));
+    return Object.freeze(
+      this.outcomes.filter((outcome): outcome is RepositoryFailure => outcome.kind === "failure"),
+    );
   }
 
   get success(): boolean {

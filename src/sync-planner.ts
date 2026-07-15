@@ -36,7 +36,9 @@ export class SyncPlanner {
       }
 
       if (aliasMatches.length > 1) {
-        throw new Error(`多个旧标签同时映射到 ${desired.name}：${aliasMatches.map(({ name }) => name).join(", ")}`);
+        throw new Error(
+          `多个旧标签同时映射到 ${desired.name}：${aliasMatches.map(({ name }) => name).join(", ")}`,
+        );
       }
 
       const old = aliasMatches[0];
@@ -51,7 +53,9 @@ export class SyncPlanner {
       labelsByName.set(desiredKey, desired);
     }
 
-    const remaining = [...labelsByName.values()].filter((label) => !desiredKeys.has(labelKey(label.name)));
+    const remaining = [...labelsByName.values()].filter(
+      (label) => !desiredKeys.has(labelKey(label.name)),
+    );
     const staleManaged = remaining
       .filter((label) => this.config.managed(label.name))
       .sort(compareLabels);

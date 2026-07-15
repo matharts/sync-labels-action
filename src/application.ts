@@ -84,9 +84,17 @@ export class Application {
     for (const repository of repositories) {
       try {
         const existing = await this.#client.listLabels(repository.fullName);
-        entries.push({ kind: "planned", repository: repository.fullName, plan: this.#planner.plan(existing) });
+        entries.push({
+          kind: "planned",
+          repository: repository.fullName,
+          plan: this.#planner.plan(existing),
+        });
       } catch (error) {
-        entries.push({ kind: "planning-failure", repository: repository.fullName, error: errorMessage(error) });
+        entries.push({
+          kind: "planning-failure",
+          repository: repository.fullName,
+          error: errorMessage(error),
+        });
       }
     }
     return new RunPlan(entries);

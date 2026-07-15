@@ -9,7 +9,9 @@ export function validatedLabelDefinition(value: unknown, context: string): Label
     throw new TypeError(`${context}必须是对象。`);
   }
 
-  const unknown = Object.keys(value).filter((key) => !LABEL_FIELD_SET.has(key)).sort();
+  const unknown = Object.keys(value)
+    .filter((key) => !LABEL_FIELD_SET.has(key))
+    .sort();
   if (unknown.length > 0) {
     throw new TypeError(`${context}包含未知字段：${unknown.join(", ")}`);
   }
@@ -38,13 +40,13 @@ export function validatedLabelDefinition(value: unknown, context: string): Label
   if (name !== name.trim()) {
     throw new TypeError(`${context}name 不能包含首尾空白。`);
   }
-  if ([...name].length > 50) {
+  if (Array.from(name).length > 50) {
     throw new TypeError(`${context}name 超过 50 个字符。`);
   }
   if (!/^[0-9A-F]{6}$/.test(color)) {
     throw new TypeError(`${context}color 必须是六位大写十六进制值。`);
   }
-  if ([...description].length > 100) {
+  if (Array.from(description).length > 100) {
     throw new TypeError(`${context}description 超过 100 个字符。`);
   }
   if (description !== description.trim()) {

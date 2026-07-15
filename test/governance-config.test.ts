@@ -9,7 +9,9 @@ import { GovernanceConfig } from "../src/governance-config";
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })));
+  await Promise.all(
+    temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
+  );
 });
 
 async function writeConfiguration(labels: string, policy: string): Promise<[string, string]> {
@@ -95,7 +97,9 @@ safety:
       'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\n',
     );
 
-    await expect(GovernanceConfig.load({ labelsPath, policyPath })).rejects.toThrow(/未知字段：extra/);
+    await expect(GovernanceConfig.load({ labelsPath, policyPath })).rejects.toThrow(
+      /未知字段：extra/,
+    );
   });
 
   it("reports invalid YAML with the source path", async () => {
@@ -115,7 +119,9 @@ safety:
       'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\nrepositories:\n  include: []\n',
     );
 
-    await expect(GovernanceConfig.load({ labelsPath, policyPath })).rejects.toThrow("include 不能为空");
+    await expect(GovernanceConfig.load({ labelsPath, policyPath })).rejects.toThrow(
+      "include 不能为空",
+    );
   });
 
   it("requires every alias to remain organization-owned", async () => {
@@ -135,7 +141,9 @@ safety:
       'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\n',
     );
 
-    await expect(GovernanceConfig.load({ labelsPath, policyPath })).rejects.toThrow("Alias resolution is disabled");
+    await expect(GovernanceConfig.load({ labelsPath, policyPath })).rejects.toThrow(
+      "Alias resolution is disabled",
+    );
   });
 
   it("loads the repository's production governance configuration", async () => {

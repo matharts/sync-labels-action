@@ -37,7 +37,7 @@ export function renderSummary(runResult: RunResult, context: SummaryContext): st
     const counts = result.counts;
     lines.push(
       `| \`${result.repository}\` | ${outcomeStatus(result, runResult.mode)} | ${counts.created} | ${counts.updated} | ` +
-      `${counts.renamed} | ${counts.deleted} | ${counts.unchanged} | ${counts.preserved} |`,
+        `${counts.renamed} | ${counts.deleted} | ${counts.unchanged} | ${counts.preserved} |`,
     );
   }
 

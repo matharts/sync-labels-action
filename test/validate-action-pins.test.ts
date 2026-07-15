@@ -9,7 +9,9 @@ const script = join(process.cwd(), "script/validate-action-pins.ts");
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })));
+  await Promise.all(
+    temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
+  );
 });
 
 describe("validate-action-pins", () => {

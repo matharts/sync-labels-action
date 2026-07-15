@@ -44,13 +44,15 @@ describe("reporting", () => {
   });
 
   it("derives dry-run reporting from the run result even when every repository fails", () => {
-    const result = new RunResult("preview", [{
-      kind: "failure",
-      repository: "matharts/failing",
-      phase: "planning",
-      error: "unavailable",
-      counts: zeroCounts(),
-    }]);
+    const result = new RunResult("preview", [
+      {
+        kind: "failure",
+        repository: "matharts/failing",
+        phase: "planning",
+        error: "unavailable",
+        counts: zeroCounts(),
+      },
+    ]);
 
     const summary = renderSummary(result, {
       owner: "matharts",

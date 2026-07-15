@@ -6,7 +6,11 @@ import { zeroCounts } from "./sync-result";
 export type DeleteReason = "legacy_alias" | "stale_managed";
 
 export type PlanEntry =
-  | { readonly action: "create" | "update" | "rename"; readonly name: string; readonly desired: LabelDefinition }
+  | {
+      readonly action: "create" | "update" | "rename";
+      readonly name: string;
+      readonly desired: LabelDefinition;
+    }
   | { readonly action: "delete"; readonly name: string; readonly reason: DeleteReason }
   | { readonly action: "unchanged" | "preserve"; readonly name: string };
 
@@ -69,7 +73,9 @@ function validateAndCopy(value: PlanEntry): PlanEntry {
 
   const entry = value as PlanEntry;
   if (!["create", "update", "rename", "delete", "unchanged", "preserve"].includes(entry.action)) {
-    throw new TypeError(`未知同步计划操作：${JSON.stringify((entry as { action?: unknown }).action)}`);
+    throw new TypeError(
+      `未知同步计划操作：${JSON.stringify((entry as { action?: unknown }).action)}`,
+    );
   }
   if (typeof entry.name !== "string" || entry.name.length === 0) {
     throw new TypeError("同步计划操作缺少标签名称。");
@@ -102,7 +108,10 @@ function validateAndCopy(value: PlanEntry): PlanEntry {
     }
     case "unchanged":
     case "preserve": {
-      const extended = entry as PlanEntry & { readonly desired?: unknown; readonly reason?: unknown };
+      const extended = entry as PlanEntry & {
+        readonly desired?: unknown;
+        readonly reason?: unknown;
+      };
       if (extended.desired !== undefined && extended.desired !== null) {
         throw new TypeError(`${entry.action} 操作不能包含目标标签。`);
       }
@@ -114,7 +123,10 @@ function validateAndCopy(value: PlanEntry): PlanEntry {
   }
 }
 
-function immutableLabel(value: LabelDefinition, action: "create" | "update" | "rename"): LabelDefinition {
+function immutableLabel(
+  value: LabelDefinition,
+  action: "create" | "update" | "rename",
+): LabelDefinition {
   if (typeof value !== "object" || value === null) {
     throw new TypeError(`${action} 操作缺少目标标签。`);
   }

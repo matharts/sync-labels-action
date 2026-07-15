@@ -11,16 +11,24 @@ export class RepositorySelector {
     private readonly config: RepositorySelectionConfig,
   ) {}
 
-  async select({ owner, onlyRepository = "" }: { owner: string; onlyRepository?: string }): Promise<readonly RepositoryTarget[]> {
+  async select({
+    owner,
+    onlyRepository = "",
+  }: {
+    owner: string;
+    onlyRepository?: string;
+  }): Promise<readonly RepositoryTarget[]> {
     let names = this.config.repositoryNames;
     const requested = normalizeRequestedRepository(owner, onlyRepository);
 
     if (names === undefined && requested.length === 0) {
       const repositories = await this.client.listOrganizationRepositories(owner);
-      return Object.freeze(repositories.flatMap((repository) => {
-        const fullName = repositoryFullName(repository, owner);
-        return unsupportedRepositoryStates(repository).length === 0 ? [target(fullName)] : [];
-      }));
+      return Object.freeze(
+        repositories.flatMap((repository) => {
+          const fullName = repositoryFullName(repository, owner);
+          return unsupportedRepositoryStates(repository).length === 0 ? [target(fullName)] : [];
+        }),
+      );
     }
 
     if (requested.length > 0) {
@@ -41,13 +49,19 @@ export class RepositorySelector {
     return Object.freeze(repositories);
   }
 
-  async #loadNamedRepository(owner: string, name: string, allowlisted: boolean): Promise<RepositoryTarget> {
+  async #loadNamedRepository(
+    owner: string,
+    name: string,
+    allowlisted: boolean,
+  ): Promise<RepositoryTarget> {
     const repository = await this.client.getRepository(owner, name);
     const fullName = repositoryFullName(repository, owner, name);
     const states = unsupportedRepositoryStates(repository);
     if (states.length > 0) {
       const scope = allowlisted ? "Allowlist 仓库" : "仓库";
-      throw new Error(`${scope} ${fullName} 处于不可同步状态：${states.join(", ")}。请更新策略或选择其他仓库。`);
+      throw new Error(
+        `${scope} ${fullName} 处于不可同步状态：${states.join(", ")}。请更新策略或选择其他仓库。`,
+      );
     }
     return target(fullName);
   }
@@ -73,7 +87,11 @@ function normalizeRequestedRepository(owner: string, rawValue: string): string {
   return value;
 }
 
-function repositoryFullName(repository: RepositoryMetadata, owner: string, expectedName?: string): string {
+function repositoryFullName(
+  repository: RepositoryMetadata,
+  owner: string,
+  expectedName?: string,
+): string {
   const fullName = repository.fullName;
   let matches: boolean;
   let expected: string;

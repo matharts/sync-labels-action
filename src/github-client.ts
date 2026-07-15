@@ -30,6 +30,8 @@ interface GitHubClientOptions {
 const DEFAULT_MAX_RETRIES = 3;
 const MAX_RETRY_DELAY = 60;
 const MAX_ERROR_MESSAGE_LENGTH = 500;
+// oxlint-disable-next-line eslint/no-control-regex -- Error messages must not inject ASCII control characters into logs.
+const ASCII_CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]/g;
 const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   "ECONNRESET",
   "ETIMEDOUT",
@@ -104,7 +106,11 @@ export class GitHubClient implements GitHubPort {
     });
   }
 
-  async updateLabel(fullName: string, currentName: string, desired: LabelDefinition): Promise<void> {
+  async updateLabel(
+    fullName: string,
+    currentName: string,
+    desired: LabelDefinition,
+  ): Promise<void> {
     await this.#requestJson(
       "PATCH",
       `/repos/${repositoryPath(fullName)}/labels/${escapePathSegment(currentName)}`,
@@ -153,9 +159,10 @@ export class GitHubClient implements GitHubPort {
     const serializedBody = body === undefined ? undefined : JSON.stringify(body);
     if (serializedBody !== undefined) headers["Content-Type"] = "application/json";
 
-    const request: HttpRequest = serializedBody === undefined
-      ? { method, url: `${this.#baseUrl}${path}`, headers }
-      : { method, url: `${this.#baseUrl}${path}`, headers, body: serializedBody };
+    const request: HttpRequest =
+      serializedBody === undefined
+        ? { method, url: `${this.#baseUrl}${path}`, headers }
+        : { method, url: `${this.#baseUrl}${path}`, headers, body: serializedBody };
     const response = await this.#requestWithRetries(request);
 
     if (response.status < 200 || response.status > 299) {
@@ -198,7 +205,9 @@ export class GitHubClient implements GitHubPort {
       }
 
       const delay = retryDelay(response, attempt);
-      this.#warning(`GitHub API 返回 ${response.status}，${delay} 秒后重试（${attempt + 1}/${this.#maxRetries}）。`);
+      this.#warning(
+        `GitHub API 返回 ${response.status}，${delay} 秒后重试（${attempt + 1}/${this.#maxRetries}）。`,
+      );
       await this.#sleeper(delay);
       attempt += 1;
     }
@@ -214,7 +223,9 @@ async function performRequest(request: HttpRequest): Promise<HttpResponse> {
   };
   if (request.body !== undefined) init.body = request.body;
   const response = await fetch(request.url, init);
-  const headers = Object.fromEntries([...response.headers.entries()].map(([key, value]) => [key.toLowerCase(), value]));
+  const headers = Object.fromEntries(
+    [...response.headers.entries()].map(([key, value]) => [key.toLowerCase(), value]),
+  );
   return { status: response.status, headers, body: await response.text() };
 }
 
@@ -223,6 +234,7 @@ function parseRepository(value: unknown): RepositoryMetadata {
     throw new Error("GitHub API 未返回仓库对象。");
   }
   return Object.freeze({
+    // oxlint-disable-next-line typescript/no-base-to-string -- Preserve existing coercion for migration parity.
     fullName: String(value.full_name ?? ""),
     archived: value.archived === true,
     disabled: value.disabled === true,
@@ -247,7 +259,7 @@ function githubResponseError(method: string, path: string, response: HttpRespons
     const parsed = JSON.parse(response.body) as unknown;
     if (isRecord(parsed) && typeof parsed.message === "string" && parsed.message.length > 0) {
       message = parsed.message
-        .replace(/[\u0000-\u001F\u007F]/g, " ")
+        .replace(ASCII_CONTROL_CHARACTERS, " ")
         .slice(0, MAX_ERROR_MESSAGE_LENGTH);
     }
   } catch {
@@ -270,9 +282,10 @@ function githubResponseError(method: string, path: string, response: HttpRespons
 
 function retryableResponse(response: HttpResponse): boolean {
   if (response.status === 429 || (response.status >= 500 && response.status <= 599)) return true;
-  return response.status === 403 && (
-    responseHeader(response, "retry-after").length > 0 ||
-    responseHeader(response, "x-ratelimit-remaining") === "0"
+  return (
+    response.status === 403 &&
+    (responseHeader(response, "retry-after").length > 0 ||
+      responseHeader(response, "x-ratelimit-remaining") === "0")
   );
 }
 
@@ -299,9 +312,11 @@ function responseHeader(response: HttpResponse, name: string): string {
 
 function isTransientNetworkError(value: unknown): boolean {
   if (!(value instanceof Error)) return false;
-  return TRANSIENT_NETWORK_ERROR_NAMES.has(value.name) ||
+  return (
+    TRANSIENT_NETWORK_ERROR_NAMES.has(value.name) ||
     TRANSIENT_NETWORK_ERROR_CODES.has(errorCode(value)) ||
-    TRANSIENT_NETWORK_ERROR_CODES.has(errorCode(value.cause));
+    TRANSIENT_NETWORK_ERROR_CODES.has(errorCode(value.cause))
+  );
 }
 
 function errorCode(value: unknown): string {
@@ -321,9 +336,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function escapePathSegment(value: unknown): string {
-  return encodeURIComponent(String(value ?? "")).replace(/[!'()~]/g, (character) =>
-    `%${character.codePointAt(0)?.toString(16).toUpperCase()}`,
+function escapePathSegment(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()~]/g,
+    (character) => `%${character.codePointAt(0)?.toString(16).toUpperCase()}`,
   );
 }
 
