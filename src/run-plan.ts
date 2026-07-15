@@ -11,9 +11,9 @@ export interface RunSafetyPolicy {
   readonly maxDeletionsTotal?: number;
 }
 
-export type RunSafetyRule = "deletions" | "max_deletions_per_repository" | "max_deletions_total";
+type RunSafetyRule = "deletions" | "max_deletions_per_repository" | "max_deletions_total";
 
-export interface RepositoryDeletionRisk {
+interface RepositoryDeletionRisk {
   readonly repository: string;
   readonly deletions: number;
 }

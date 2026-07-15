@@ -43,10 +43,6 @@ export class GovernanceConfig implements PlanningConfig {
     return new GovernanceConfig(labels, policy);
   }
 
-  get allRepositories(): boolean {
-    return this.repositoryScope.allRepositories;
-  }
-
   managed(name: string): boolean {
     return managedLabel(name, this.#policy);
   }
