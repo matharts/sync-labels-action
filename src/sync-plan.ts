@@ -1,0 +1,134 @@
+import type { LabelDefinition } from "./label-types";
+import type { SyncCounts } from "./sync-result";
+import { zeroCounts } from "./sync-result";
+
+export type DeleteReason = "legacy_alias" | "stale_managed";
+
+export type PlanEntry =
+  | { readonly action: "create" | "update" | "rename"; readonly name: string; readonly desired: LabelDefinition }
+  | { readonly action: "delete"; readonly name: string; readonly reason: DeleteReason }
+  | { readonly action: "unchanged" | "preserve"; readonly name: string };
+
+export interface SerializedPlanEntry {
+  readonly action: string;
+  readonly name: string;
+  readonly desired?: LabelDefinition;
+  readonly reason?: string;
+}
+
+export class SyncPlan {
+  readonly entries: readonly PlanEntry[];
+  readonly counts: SyncCounts;
+
+  constructor(entries: readonly PlanEntry[]) {
+    if (!Array.isArray(entries)) {
+      throw new TypeError("同步计划 entries 必须是数组。");
+    }
+
+    this.entries = Object.freeze(entries.map((entry) => validateAndCopy(entry)));
+    const counts = { ...zeroCounts() };
+    for (const entry of this.entries) {
+      counts[countFieldForAction(entry.action)] += 1;
+    }
+    this.counts = Object.freeze(counts);
+    Object.freeze(this);
+  }
+
+  toJSON(): { readonly entries: readonly SerializedPlanEntry[]; readonly counts: SyncCounts } {
+    return {
+      entries: this.entries.map((entry) => ({ ...entry })),
+      counts: { ...this.counts },
+    };
+  }
+}
+
+type CountField = keyof SyncCounts;
+
+export function countFieldForAction(action: PlanEntry["action"]): CountField {
+  switch (action) {
+    case "create":
+      return "created";
+    case "update":
+      return "updated";
+    case "rename":
+      return "renamed";
+    case "delete":
+      return "deleted";
+    case "unchanged":
+      return "unchanged";
+    case "preserve":
+      return "preserved";
+  }
+}
+
+function validateAndCopy(value: PlanEntry): PlanEntry {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError("同步计划 entry 类型无效。");
+  }
+
+  const entry = value as PlanEntry;
+  if (!["create", "update", "rename", "delete", "unchanged", "preserve"].includes(entry.action)) {
+    throw new TypeError(`未知同步计划操作：${JSON.stringify((entry as { action?: unknown }).action)}`);
+  }
+  if (typeof entry.name !== "string" || entry.name.length === 0) {
+    throw new TypeError("同步计划操作缺少标签名称。");
+  }
+
+  switch (entry.action) {
+    case "create":
+    case "update":
+    case "rename": {
+      const desired = immutableLabel(entry.desired, entry.action);
+      const reason = (entry as PlanEntry & { readonly reason?: unknown }).reason;
+      if (reason !== undefined && reason !== null) {
+        throw new TypeError(`${entry.action} 操作不能包含删除原因。`);
+      }
+      return Object.freeze({
+        action: entry.action,
+        name: entry.name,
+        desired,
+      });
+    }
+    case "delete": {
+      const desired = (entry as PlanEntry & { readonly desired?: unknown }).desired;
+      if (desired !== undefined && desired !== null) {
+        throw new TypeError("delete 操作不能包含目标标签。");
+      }
+      if (entry.reason !== "legacy_alias" && entry.reason !== "stale_managed") {
+        throw new TypeError(`delete 操作的原因无效：${JSON.stringify(entry.reason)}`);
+      }
+      return Object.freeze({ action: entry.action, name: entry.name, reason: entry.reason });
+    }
+    case "unchanged":
+    case "preserve": {
+      const extended = entry as PlanEntry & { readonly desired?: unknown; readonly reason?: unknown };
+      if (extended.desired !== undefined && extended.desired !== null) {
+        throw new TypeError(`${entry.action} 操作不能包含目标标签。`);
+      }
+      if (extended.reason !== undefined && extended.reason !== null) {
+        throw new TypeError(`${entry.action} 操作不能包含删除原因。`);
+      }
+      return Object.freeze({ action: entry.action, name: entry.name });
+    }
+  }
+}
+
+function immutableLabel(value: LabelDefinition, action: "create" | "update" | "rename"): LabelDefinition {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError(`${action} 操作缺少目标标签。`);
+  }
+
+  const missing = ["name", "color", "description"].filter(
+    (key) => !Object.prototype.hasOwnProperty.call(value, key),
+  );
+  if (missing.length > 0) {
+    throw new TypeError(`${action} 操作的目标标签缺少字段：${missing.join(", ")}`);
+  }
+
+  return Object.freeze({
+    name: value.name,
+    color: value.color,
+    description: value.description,
+    aliases: Object.freeze([...(value.aliases ?? [])]),
+  });
+}

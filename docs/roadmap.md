@@ -1,6 +1,6 @@
 # MathArts Sync Labels 版本路线图
 
-更新日期：2026-07-14
+更新日期：2026-07-15
 
 ## 当前基线：v1.3.0
 
@@ -11,9 +11,23 @@
 - `SyncPlanner` / `SyncPlan` / `SyncExecutor` 的 Plan / Apply 分层
 - 配置和计划前置校验、读取请求重试、跨仓库失败隔离
 - job summary 和结构化 Action outputs
-- 无运行时 Gem 依赖，CI 覆盖 Ruby 3.1、3.3 和 3.4
+- 无运行时 Gem 依赖，发布实现使用 Ruby 3.1 或更高版本
 
 截至本路线图更新时，测试基线为 38 个测试、184 个断言，全部通过；核心入口和 `src/` 的行覆盖率约为 91.8%。覆盖率只是辅助证据，不代替行为与集成验证。
+
+## 当前开发基线：Node.js 24 迁移
+
+主分支的下一版本正在保持 v1.3 对外契约的前提下迁移到 GitHub 原生 Node.js 24 Action：
+
+- TypeScript strict 和 pnpm 锁文件提供可复现的开发与构建环境
+- `action.yml` 直接执行提交的 `dist/index.js`，调用方不再依赖 Ruby 或 Bash
+- `GovernanceConfig` 已收敛为纯本地配置模块，`RepositorySelector` 独占远程仓库选择
+- `GitHubClient` 已隐藏 REST 路径、分页、响应解析和读取重试
+- 配置、计划、传输、执行、报告和主入口测试已拆分为独立文件
+- Node 测试继续固定 v1.3 的 dry-run、写请求不重试、失败隔离和部分完成计数语义
+- `test/fixtures/ruby-v1.3-behavior.json` 固定 Ruby 基线的配置、仓库选择、重试矩阵、计划、请求顺序、输出、摘要和 Unicode 行为，Node parity 测试持续对照该快照
+
+语言迁移不加入删除保护、`exclude`、`RunPlan` 或计划摘要；这些功能仍按下述版本路线推进。
 
 ## 代码与设计评估
 
@@ -23,18 +37,14 @@
 - `SyncPlan` 会验证并冻结计划，调用方不能绕过计划约束直接构造任意操作
 - `SyncExecutor` 只接受已验证计划，并能在部分写入失败时返回已经完成的计数
 - GitHub 读取重试与写入不重试的边界符合“避免重复变更”的安全目标
-- 配置解析使用 `safe_load`、拒绝未知字段，并对标签所有权和 alias 关系进行交叉校验
+- 配置解析保持 Ruby v1.3 的 YAML 1.1 标量语义，同时禁用 aliases、拒绝未知字段，并对标签所有权和 alias 关系进行交叉校验
 
 ### 下一阶段必须先处理的设计约束
 
 | 现状 | 影响 | 调整方向 |
 | --- | --- | --- |
-| `GovernanceConfig` 同时负责 YAML、治理规则和远程仓库选择，共约 300 行 | 新增 `exclude` 或验证模式会继续扩大职责 | 配置保持纯本地数据；仓库选择成为独立的深模块 |
-| `GitHubApi` 向调用方暴露 `get/post/patch/delete` 和 URL 路径 | 路径、响应结构和错误解释分散到上层 | 由 GitHub 客户端封装仓库与标签操作，返回类型化错误 |
 | `RepositorySynchronizer#sync` 把读取、规划和执行绑在一起 | 无法在任何写入前检查整次运行的删除上限或计划摘要 | 将 Plan / Apply 提升到整次运行级别 |
 | `Application` 按仓库“规划后立即执行” | 后面的仓库规划失败时，前面的仓库已经被修改 | 完成全部仓库规划后，再按不可变 `RunPlan` 执行成功计划 |
-| 主入口直接创建所有依赖 | `sync-labels.rb` 只有 11/30 个可执行行被现有测试覆盖 | 通过一个可注入依赖的运行接口验证完整流程 |
-| 所有测试集中在一个 884 行文件 | 行为覆盖较高，但定位和扩展测试成本持续上升 | 按配置、计划、传输和整次运行拆分测试文件 |
 
 路线图因此按“整次运行安全 → 配置与范围 → 审计”推进。性能优化和破坏性升级没有证据支撑，暂不排期。
 
@@ -71,9 +81,9 @@ flowchart LR
 
 ### 设计改造
 
-- 将 `GovernanceConfig` 收敛为不可变的本地配置模块；构造后深度复制并冻结标签与策略
-- 将远程仓库发现、仓库状态校验和单仓库选择移入 `RepositorySelector`
-- 收紧 GitHub 客户端接口：由客户端拥有 URL、分页和响应结构，调用方只使用仓库和标签领域操作
+- 保持 Node 迁移建立的不可变本地 `GovernanceConfig`
+- 扩展 `RepositorySelector`，但继续让它独占远程仓库发现、状态校验和单仓库选择
+- 保持 GitHub 客户端的领域接口，由客户端独占 URL、分页和响应结构
 - 用带 `category`、HTTP 状态和安全消息的类型化错误替换字符串拼接错误
 - 新增不可变 `RunPlan`，包含目标仓库、每仓库 `SyncPlan`、规划失败和整次运行计数
 - 将 `RepositorySynchronizer` 的读取/规划/执行组合拆成整次运行的 `RunPlanner` 和 `RunExecutor`
@@ -98,10 +108,10 @@ flowchart LR
 
 ### 测试与质量
 
-- 将单一测试文件拆为 `test/unit` 和 `test/integration`，共享最小测试辅助代码
+- 在按 seam 拆分的 Node 测试基础上补齐整次运行测试
 - 新增主入口集成测试，覆盖成功 dry-run、成功写入、规划失败和部分执行失败
 - 保留纯 `SyncPlanner` 契约测试，并从 `Application#run` 接口验证整次运行行为
-- CI 增加全部 Ruby 文件语法检查；现有 Action 固定引用检查继续保留
+- CI 保持 Node 24 类型检查、行为测试、bundle 一致性和 Action 固定引用检查
 
 ### 发布验收
 
@@ -111,7 +121,7 @@ flowchart LR
 - `GovernanceConfig` 构造后修改原始 Hash 或 Array 不会改变运行结果
 - 除 GitHub 客户端外，源码不再构造 GitHub REST 路径或解释原始响应
 - `v1.3.0` 的合法配置在未设置 `safety` 时产生相同的仓库级计划和最终状态
-- Ruby 3.1、3.3、3.4 CI、主入口集成测试和失败恢复测试全部通过
+- Node 24 CI、主入口集成测试和失败恢复测试全部通过
 
 ## v1.5.0：配置、同步范围与故障诊断
 
@@ -196,7 +206,7 @@ flowchart LR
 
 ## 每个版本共同发布门槛
 
-- Ruby 3.1、3.3 和 3.4 测试矩阵全部通过
+- Node 24 类型检查、行为测试和 bundle 一致性检查全部通过
 - 所有第三方 Action 固定到完整 Commit SHA
 - 配置、仓库选择、计划、执行和主入口均有接口级行为测试
 - README、Action metadata、路线图和发布说明保持一致
