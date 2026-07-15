@@ -5,7 +5,7 @@ import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 
 describe("action metadata", () => {
-  it("keeps release metadata on v1.4.0 while declaring validate_only", async () => {
+  it("declares the v1.5.0 release candidate with repository exclusions and offline validation", async () => {
     const packageMetadata = JSON.parse(
       await readFile(join(process.cwd(), "package.json"), "utf8"),
     ) as { version: string };
@@ -27,7 +27,7 @@ describe("action metadata", () => {
       "failures",
     ];
 
-    expect(packageMetadata.version).toBe("1.4.0");
+    expect(packageMetadata.version).toBe("1.5.0-rc.1");
     expect(metadata.runs).toEqual({ using: "node24", main: "dist/index.js" });
     expect(metadata.inputs.repository?.description).toContain("repositories.exclude");
     expect(metadata.inputs.token?.required).toBe(false);
