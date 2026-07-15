@@ -194,7 +194,7 @@ export class GitHubClient implements GitHubPort {
         }
         const delay = exponentialBackoff(attempt);
         this.#warning(
-          `GitHub API 网络错误，${delay} 秒后重试（${attempt + 1}/${this.#maxRetries}）：${errorName(error)}`,
+          `GitHub API 网络错误，${delay} 秒后重试（${attempt + 1}/${this.#maxRetries}）：${error.name}`,
         );
         await this.#sleeper(delay);
         attempt += 1;
@@ -322,7 +322,7 @@ function responseHeader(response: HttpResponse, name: string): string {
   return entry?.[1] ?? "";
 }
 
-function isTransientNetworkError(value: unknown): boolean {
+function isTransientNetworkError(value: unknown): value is Error {
   if (!(value instanceof Error)) return false;
   return (
     TRANSIENT_NETWORK_ERROR_NAMES.has(value.name) ||
@@ -334,10 +334,6 @@ function isTransientNetworkError(value: unknown): boolean {
 function errorCode(value: unknown): string {
   if (typeof value !== "object" || value === null || !("code" in value)) return "";
   return typeof value.code === "string" ? value.code : "";
-}
-
-function errorName(value: unknown): string {
-  return value instanceof Error ? value.name : "Error";
 }
 
 function sleep(delaySeconds: number): Promise<void> {

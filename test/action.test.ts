@@ -2,13 +2,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runAction, type ActionRuntime } from "../src/action";
 import { GitHubClient } from "../src/github-client";
 import type { GitHubPort } from "../src/github-port";
 import type { ExistingLabel, LabelDefinition } from "../src/label-types";
 import type { RepositoryMetadata } from "../src/repository-types";
+import { SyncExecutor } from "../src/sync-executor";
 
 const temporaryDirectories: string[] = [];
 
@@ -75,6 +76,9 @@ interface ActionScenario {
   readonly validateOnly?: boolean | string;
   readonly token?: string;
   readonly owner?: string;
+  readonly apiUrl?: string;
+  readonly useDefaultClient?: boolean;
+  readonly omittedInputs?: readonly string[];
 }
 
 async function runScenario({
@@ -86,6 +90,9 @@ async function runScenario({
   validateOnly = false,
   token = "test-token",
   owner = "matharts",
+  apiUrl = "https://api.github.com",
+  useDefaultClient = false,
+  omittedInputs = [],
 }: ActionScenario) {
   const directory = await mkdtemp(join(tmpdir(), "sync-labels-action-"));
   temporaryDirectories.push(directory);
@@ -102,8 +109,9 @@ async function runScenario({
     dry_run: String(dryRun),
     validate_only: String(validateOnly),
     repository: "",
-    api_url: "https://api.github.com",
+    api_url: apiUrl,
   };
+  for (const name of omittedInputs) delete inputs[name];
   const outputs = new Map<string, unknown>();
   const summaries: string[] = [];
   const failures: string[] = [];
@@ -112,7 +120,7 @@ async function runScenario({
   let clientCreations = 0;
   let outputAttempts = 0;
   const runtime: ActionRuntime = {
-    getInput: (name) => inputs[name] ?? "",
+    getInput: (name) => inputs[name] as string,
     setSecret: (value) => secrets.push(value),
     setOutput: (name, value) => {
       outputAttempts += 1;
@@ -129,12 +137,16 @@ async function runScenario({
     endGroup: () => {},
   };
 
-  await runAction(runtime, {
-    createClient: () => {
-      clientCreations += 1;
-      return client;
-    },
-  });
+  if (useDefaultClient) {
+    await runAction(runtime);
+  } else {
+    await runAction(runtime, {
+      createClient: () => {
+        clientCreations += 1;
+        return client;
+      },
+    });
+  }
 
   return {
     outputs,
@@ -231,6 +243,42 @@ describe("runAction", () => {
     expect(invalidValidation.clientCreations).toBe(0);
   });
 
+  it("constructs the default GitHub client when no adapter is supplied", async () => {
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: true,
+      client: new FakeClient(),
+      apiUrl: "not-a-url",
+      useDefaultClient: true,
+    });
+
+    expect(result.clientCreations).toBe(0);
+    expect(result.failures).toEqual(["GitHub API 地址必须是有效的 HTTPS URL。"]);
+  });
+
+  it("uses action defaults when optional runtime inputs are absent", async () => {
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: false,
+      client: new FakeClient(),
+      omittedInputs: [
+        "config_file",
+        "policy_file",
+        "dry_run",
+        "validate_only",
+        "repository",
+        "api_url",
+      ],
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.logs).toContain("Config: .github/labels.yml");
+    expect(result.logs).toContain("Policy: .github/label-policy.yml");
+    expect(result.logs).toContain("Dry run: true");
+  });
+
   it("stops publication after an output error and records that failure once", async () => {
     const result = await runScenario({
       labels: BUG_LABEL,
@@ -285,6 +333,19 @@ describe("runAction", () => {
     expect(missingOwner.failures).toEqual(["SYNC_LABELS_OWNER 不能为空。"]);
     expect(missingToken.clientCreations).toBe(0);
     expect(missingOwner.clientCreations).toBe(0);
+  });
+
+  it("treats absent credential inputs as empty", async () => {
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: true,
+      client: new FakeClient(),
+      omittedInputs: ["token", "owner"],
+    });
+
+    expect(result.failures).toEqual(["SYNC_LABELS_TOKEN 不能为空。"]);
+    expect(result.clientCreations).toBe(0);
   });
 
   it("plans every repository before the first mutation", async () => {
@@ -399,6 +460,43 @@ describe("runAction", () => {
     });
   });
 
+  it("preserves planning failures when deletion safety blocks the completed plans", async () => {
+    const client = new FakeClient({
+      failingList: "matharts/failing",
+      labels: () => [
+        { name: "type: bug", color: "D73A4A", description: null },
+        { name: "type: obsolete", color: "FFFFFF", description: "stale" },
+      ],
+    });
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy:
+        'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\nrepositories:\n  include: [failing, healthy]\nsafety:\n  max_deletions_total: 0\n',
+      dryRun: false,
+      client,
+    });
+
+    expect(result.summary).toContain("| `matharts/failing` | 规划失败 |");
+    expect(result.summary).toContain("| `matharts/healthy` | 安全阻止 |");
+    expect(result.logs).toContain("simulated planning failure");
+  });
+
+  it("stringifies a non-Error planning failure", async () => {
+    const client = new FakeClient();
+    client.listLabels = async () => {
+      throw "plain planning failure";
+    };
+
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: true,
+      client,
+    });
+
+    expect(result.summary).toContain("plain planning failure");
+  });
+
   it("keeps GitHub credentials redacted in action logs and summaries", async () => {
     const token = "secret-token";
     const client = new GitHubClient({
@@ -470,6 +568,27 @@ describe("runAction", () => {
     expect(result.outputs.get("failures")).toBe(1);
     expect(result.failures).toEqual(["1 个仓库同步失败。"]);
     expect(result.summary).toContain("simulated mutation failure");
+  });
+
+  it("records zero completed counts for an unexpected executor failure", async () => {
+    const apply = vi
+      .spyOn(SyncExecutor.prototype, "apply")
+      .mockRejectedValueOnce(new Error("unexpected executor failure"));
+
+    try {
+      const result = await runScenario({
+        labels: BUG_LABEL,
+        policy: BUG_POLICY,
+        dryRun: false,
+        client: new FakeClient(),
+      });
+
+      expect(result.outputs.get("created")).toBe(0);
+      expect(result.outputs.get("failures")).toBe(1);
+      expect(result.summary).toContain("unexpected executor failure");
+    } finally {
+      apply.mockRestore();
+    }
   });
 
   it("continues after one repository fails and preserves completed counts", async () => {

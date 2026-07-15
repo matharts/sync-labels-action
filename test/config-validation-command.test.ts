@@ -2,9 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runConfigValidationCommand } from "../src/config-validation-command";
+import { GovernanceConfig } from "../src/governance-config";
 
 const temporaryDirectories: string[] = [];
 const LABELS = '- name: "type: bug"\n  color: "D73A4A"\n';
@@ -39,6 +40,17 @@ function commandIO(cwd: string) {
 }
 
 describe("config validation command", () => {
+  it("prints help without reading configuration", async () => {
+    const { io, information, errors } = commandIO("/unused");
+
+    const exitCode = await runConfigValidationCommand(["--help"], io);
+
+    expect(exitCode).toBe(0);
+    expect(information).toHaveLength(1);
+    expect(information[0]).toContain("用法：pnpm validate:config");
+    expect(errors).toEqual([]);
+  });
+
   it("validates the default configuration paths without GitHub credentials", async () => {
     const directory = await temporaryDirectory();
     const githubDirectory = join(directory, ".github");
@@ -82,5 +94,16 @@ describe("config validation command", () => {
     await expect(runConfigValidationCommand(["--config-file"], incomplete.io)).resolves.toBe(1);
     expect(unknown.errors).toEqual(["配置校验失败：未知参数：--unknown"]);
     expect(incomplete.errors).toEqual(["配置校验失败：--config-file 缺少路径。"]);
+  });
+
+  it("stringifies a non-Error validation failure", async () => {
+    const load = vi.spyOn(GovernanceConfig, "load").mockRejectedValueOnce("plain failure");
+    const command = commandIO("/unused");
+
+    const exitCode = await runConfigValidationCommand([], command.io);
+    load.mockRestore();
+
+    expect(exitCode).toBe(1);
+    expect(command.errors).toEqual(["配置校验失败：plain failure"]);
   });
 });

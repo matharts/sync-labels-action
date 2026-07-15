@@ -3,6 +3,52 @@ import { describe, expect, it, vi } from "vitest";
 import { GitHubClient, type HttpRequest, type HttpResponse } from "../src/github-client";
 
 describe("GitHubClient", () => {
+  it("validates retry configuration", () => {
+    expect(
+      () =>
+        new GitHubClient({
+          token: "token",
+          baseUrl: "https://api.example.test",
+          maxRetries: -1,
+        }),
+    ).toThrow("max_retries 不能小于 0");
+    expect(
+      () =>
+        new GitHubClient({
+          token: "token",
+          baseUrl: "https://api.example.test",
+          maxRetries: 0.5,
+        }),
+    ).toThrow("max_retries 不能小于 0");
+  });
+
+  it("lists organization repositories with query-safe pagination", async () => {
+    const requests: HttpRequest[] = [];
+    const client = new GitHubClient({
+      token: "token",
+      baseUrl: "https://api.example.test",
+      requester: async (request) => {
+        requests.push(request);
+        return {
+          status: 200,
+          headers: {},
+          body: JSON.stringify([
+            { full_name: "matharts/example", archived: true, disabled: true, fork: true },
+            {},
+          ]),
+        };
+      },
+    });
+
+    const repositories = await client.listOrganizationRepositories("matharts");
+
+    expect(repositories).toEqual([
+      { fullName: "matharts/example", archived: true, disabled: true, fork: true },
+      { fullName: "", archived: false, disabled: false, fork: false },
+    ]);
+    expect(requests[0]?.url).toContain("direction=asc&per_page=100&page=1");
+  });
+
   it("owns GitHub paths, retries transient reads, and paginates until a short page", async () => {
     const requests: HttpRequest[] = [];
     const delays: number[] = [];
@@ -262,6 +308,160 @@ describe("GitHubClient", () => {
       fetchMock.mockRestore();
     }
   });
+
+  it("uses the default request adapter for mutation bodies", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("", {
+        status: 200,
+        headers: { "X-Test": "value" },
+      }),
+    );
+    const client = new GitHubClient({ token: "token", baseUrl: "https://api.example.test" });
+
+    try {
+      await client.createLabel("matharts/example", {
+        name: "type: bug",
+        color: "D73A4A",
+        description: "bug",
+        aliases: [],
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+        JSON.stringify({ name: "type: bug", color: "D73A4A", description: "bug" }),
+      );
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it("uses the default sleeper for transient named errors", async () => {
+    vi.useFakeTimers();
+    let attempts = 0;
+    const timeout = Object.assign(new Error("timed out"), { name: "TimeoutError" });
+    const client = new GitHubClient({
+      token: "token",
+      baseUrl: "https://api.example.test",
+      requester: async () => {
+        attempts += 1;
+        if (attempts === 1) throw timeout;
+        return { status: 200, headers: {}, body: "[]" };
+      },
+      warning: () => {},
+      maxRetries: 1,
+    });
+
+    try {
+      const promise = client.listLabels("matharts/example");
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("validates paginated and parsed response shapes", async () => {
+    const responseClient = (body: string) =>
+      new GitHubClient({
+        token: "token",
+        baseUrl: "https://api.example.test",
+        requester: async () => ({ status: 200, headers: {}, body }),
+      });
+
+    await expect(responseClient("{}").listLabels("matharts/example")).rejects.toThrow(
+      "GitHub API 分页结果不是数组",
+    );
+    await expect(responseClient("[]").getRepository("matharts", "example")).rejects.toThrow(
+      "GitHub API 未返回仓库对象",
+    );
+    await expect(responseClient("[null]").listLabels("matharts/example")).rejects.toThrow(
+      "GitHub API 返回了无效标签对象",
+    );
+    await expect(
+      responseClient('[{"name":"bug","color":"D73A4A","description":42}]').listLabels(
+        "matharts/example",
+      ),
+    ).rejects.toThrow("GitHub API 返回了无效标签描述");
+  });
+
+  it("reports permission metadata and sanitizes control characters without a token", async () => {
+    const client = new GitHubClient({
+      token: "",
+      baseUrl: "https://api.example.test",
+      requester: async () => ({
+        status: 403,
+        headers: {
+          "X-Accepted-GitHub-Permissions": "issues=write",
+          "X-OAuth-Scopes": "repo",
+        },
+        body: '{"message":"denied\\u0000now"}',
+      }),
+    });
+
+    const promise = client.listLabels("matharts/example");
+
+    await expect(promise).rejects.toThrow("Message: denied now");
+    await expect(promise).rejects.toThrow("Accepted permissions: issues=write");
+    await expect(promise).rejects.toThrow("Token scopes: repo");
+  });
+
+  it("derives response retry delays from reset time and exponential fallback", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const delays: number[] = [];
+    const responses: HttpResponse[] = [
+      { status: 503, headers: { "x-ratelimit-reset": "1065" }, body: "{}" },
+      { status: 503, headers: { "x-ratelimit-reset": "999" }, body: "{}" },
+      { status: 503, headers: {}, body: "{}" },
+      { status: 200, headers: {}, body: "[]" },
+    ];
+    const client = new GitHubClient({
+      token: "token",
+      baseUrl: "https://api.example.test",
+      requester: async () => responses.shift()!,
+      sleeper: async (delay) => delays.push(delay),
+      warning: () => {},
+      maxRetries: 3,
+    });
+
+    try {
+      await expect(client.listLabels("matharts/example")).resolves.toEqual([]);
+      expect(delays).toEqual([60, 0, 4]);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it("does not retry non-Error or malformed-code failures", async () => {
+    const plainFailure = new GitHubClient({
+      token: "token",
+      baseUrl: "https://api.example.test",
+      requester: async () => {
+        throw "plain failure";
+      },
+    });
+    const malformedCode = new GitHubClient({
+      token: "token",
+      baseUrl: "https://api.example.test",
+      requester: async () => {
+        throw Object.assign(new Error("bad code"), { code: 42 });
+      },
+    });
+
+    await expect(plainFailure.listLabels("matharts/example")).rejects.toBe("plain failure");
+    await expect(malformedCode.listLabels("matharts/example")).rejects.toThrow("bad code");
+  });
+
+  it.each(["invalid", "/example", "matharts/"])(
+    "rejects an invalid repository name %j",
+    async (fullName) => {
+      const client = new GitHubClient({
+        token: "token",
+        baseUrl: "https://api.example.test",
+        requester: async () => ({ status: 200, headers: {}, body: "[]" }),
+      });
+
+      await expect(client.listLabels(fullName)).rejects.toThrow("无效仓库名称");
+    },
+  );
 
   it("encapsulates mutation paths and payloads", async () => {
     const requests: HttpRequest[] = [];

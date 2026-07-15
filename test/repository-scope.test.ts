@@ -37,6 +37,21 @@ function scope(policy: RepositoryScopePolicy = {}): RepositoryScope {
 }
 
 describe("RepositoryScope", () => {
+  it.each([
+    [{ include: [] }, "repositories.include 不能为空"],
+    [{ include: ["bad/name"] }, "repositories.include 包含无效仓库名称：bad/name"],
+    [{ exclude: ["Example", "example"] }, "repositories.exclude 包含重复值"],
+    [
+      { include: ["B", "a"], exclude: ["a", "b"] },
+      "repositories.include 与 repositories.exclude 不能重叠：a, B",
+    ],
+  ] satisfies readonly (readonly [RepositoryScopePolicy, string])[])(
+    "rejects an invalid repository policy %#",
+    (policy, message) => {
+      expect(() => scope(policy)).toThrow(message);
+    },
+  );
+
   it("loads only allowlisted repositories in policy order", async () => {
     const client = new FakeClient({
       "matharts/example": repository("matharts/example"),
@@ -94,6 +109,19 @@ describe("RepositoryScope", () => {
     expect(client.calls).toEqual(["get:matharts/example"]);
   });
 
+  it("selects an explicitly requested allowlisted repository by canonical policy spelling", async () => {
+    const client = new FakeClient({ "matharts/example": repository("matharts/example") });
+    const repositoryScope = scope({ include: ["example"] });
+
+    const repositories = await repositoryScope.select(client, {
+      owner: "matharts",
+      onlyRepository: "EXAMPLE",
+    });
+
+    expect(repositories).toEqual([{ fullName: "matharts/example" }]);
+    expect(client.calls).toEqual(["get:matharts/example"]);
+  });
+
   it("fails when an explicitly allowlisted repository is archived", async () => {
     const client = new FakeClient({
       "matharts/example": repository("matharts/example", { archived: true }),
@@ -103,6 +131,42 @@ describe("RepositoryScope", () => {
     await expect(repositoryScope.select(client, { owner: "matharts" })).rejects.toThrow(
       "Allowlist 仓库 matharts/example 处于不可同步状态：archived",
     );
+  });
+
+  it("labels an unsupported explicit repository outside an allowlist", async () => {
+    const client = new FakeClient({
+      "matharts/example": repository("matharts/example", { archived: true }),
+    });
+
+    await expect(
+      scope().select(client, { owner: "matharts", onlyRepository: "example" }),
+    ).rejects.toThrow("仓库 matharts/example 处于不可同步状态：archived");
+  });
+
+  it.each([
+    ["other/example", "指定仓库不属于 matharts 组织"],
+    ["bad name", "指定仓库名称无效"],
+  ])("rejects an invalid explicit repository %s", async (onlyRepository, message) => {
+    await expect(
+      scope().select(new FakeClient({}), { owner: "matharts", onlyRepository }),
+    ).rejects.toThrow(message);
+  });
+
+  it.each(["invalid", "other/example", "matharts/"])(
+    "rejects an inconsistent organization repository response %j",
+    async (fullName) => {
+      const client = new FakeClient({}, [repository(fullName)]);
+
+      await expect(scope().select(client, { owner: "matharts" })).rejects.toThrow("仓库解析不一致");
+    },
+  );
+
+  it("rejects an inconsistent explicit repository response", async () => {
+    const client = new FakeClient({ "matharts/example": repository("matharts/other") });
+
+    await expect(
+      scope().select(client, { owner: "matharts", onlyRepository: "example" }),
+    ).rejects.toThrow("仓库解析不一致：期望 matharts/example");
   });
 
   it("applies exclude after all-repositories selection without expanding unsupported states", async () => {

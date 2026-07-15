@@ -37,8 +37,10 @@ describe("OperationCounts", () => {
   });
 
   it("rejects invalid count values and unknown operations", () => {
+    expect(() => new OperationCounts(null as never)).toThrow("同步操作计数必须是对象");
     expect(() => new OperationCounts({ created: -1 })).toThrow("非负安全整数");
     expect(() => new OperationCounts({ updated: 0.5 })).toThrow("非负安全整数");
+    expect(() => OperationCounts.sum([{} as OperationCounts])).toThrow("只能聚合同步操作计数");
     expect(() => OperationCounts.fromOperations(["archive" as SyncOperation])).toThrow(
       '未知同步操作："archive"',
     );
