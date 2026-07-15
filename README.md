@@ -358,11 +358,11 @@ mise exec -- pnpm build
 
 代码格式化使用 Oxfmt，代码检查使用 Oxlint 和 `oxlint-tsgolint` 的类型感知规则。Lefthook 会在提交前格式化已暂存文件、重新暂存格式化结果，并检查已暂存的 JavaScript 和 TypeScript 文件。
 
-Nub 仅用于直接执行 `script/**/*.ts`；pnpm 仍负责依赖管理，Action bundle 仍在 GitHub 原生 Node.js 24 运行时执行。Nub 在执行 TypeScript 时只负责转译、不执行类型检查，`pnpm check` 会依次检查格式、lint、TypeScript 类型、行为测试和固定引用。
+Nub 仅用于直接执行 `scripts/**/*.ts`；pnpm 仍负责依赖管理，Action bundle 仍在 GitHub 原生 Node.js 24 运行时执行。Nub 在执行 TypeScript 时只负责转译、不执行类型检查，`pnpm check` 会依次检查格式、lint、TypeScript 类型、行为测试和固定引用。
 
 `dist/index.js` 是提交给 GitHub Actions 执行的单文件 bundle。持续集成会运行格式检查、类型感知 lint、严格类型检查、行为测试和固定引用检查，重新构建并验证 `dist/` 没有差异，同时使用 Actionlint 检查工作流。
 
-迁移等价性由 [`test/fixtures/ruby-v1.3-behavior.json`](test/fixtures/ruby-v1.3-behavior.json) 固定；parity 测试会对照 Ruby v1.3 基线检查配置、仓库选择、读取重试、计划与请求顺序、预览、部分失败计数、任务摘要、输出和 Unicode 行为。
+迁移等价性由 [`tests/fixtures/ruby-v1.3-behavior.json`](tests/fixtures/ruby-v1.3-behavior.json) 固定；parity 测试会对照 Ruby v1.3 基线检查配置、仓库选择、读取重试、计划与请求顺序、预览、部分失败计数、任务摘要、输出和 Unicode 行为。
 
 ## 许可证
 

@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-const script = join(process.cwd(), "script/validate-action-pins.ts");
+const script = join(process.cwd(), "scripts/validate-action-pins.ts");
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
