@@ -4,6 +4,10 @@ import { OperationCounts } from "../src/operation-counts";
 import { RunResult } from "../src/run-result";
 
 describe("RunResult", () => {
+  it("rejects an unknown mode", () => {
+    expect(() => new RunResult("execute" as never, [])).toThrow('运行模式无效："execute"');
+  });
+
   it("derives one immutable statistics value from successful and partial outcomes", () => {
     const result = new RunResult("apply", [
       {

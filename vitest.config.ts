@@ -10,6 +10,10 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "lcov"],
       include: ["src/**/*.ts"],
+      thresholds: {
+        perFile: true,
+        100: true,
+      },
     },
   },
 });

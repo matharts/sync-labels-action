@@ -97,6 +97,14 @@ describe("SyncPlanner", () => {
     ]);
   });
 
+  it("updates a canonical label whose metadata changed", () => {
+    const plan = new SyncPlanner({ labels: [desired[0]!], managed: () => true }).plan([
+      { name: "type: bug", color: "FFFFFF", description: "legacy" },
+    ]);
+
+    expect(plan.entries).toEqual([{ action: "update", name: "type: bug", desired: desired[0] }]);
+  });
+
   it("copies and freezes caller-owned desired labels", () => {
     const mutable = {
       name: "type: bug",

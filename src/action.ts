@@ -208,7 +208,7 @@ class ActionInvocation {
     message: string,
     counts: OperationCounts,
   ): void {
-    const firstLine = message.split("\n", 1)[0] ?? "";
+    const [firstLine] = message.split("\n", 1);
     this.runtime.error(`${fullName}: ${firstLine}`, "标签同步失败");
     this.runtime.info("");
     this.runtime.info(`Repository: ${fullName}`);
@@ -226,10 +226,7 @@ class ActionInvocation {
         }
       }
     } catch (error) {
-      const publicationFailure = ActionReport.failure(error);
-      if (publicationFailure.completion.status === "failure") {
-        this.runtime.setFailed(publicationFailure.completion.message);
-      }
+      this.runtime.setFailed(errorMessage(error));
       return false;
     }
 

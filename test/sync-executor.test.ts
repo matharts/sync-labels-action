@@ -93,4 +93,54 @@ describe("SyncExecutor", () => {
       counts: new OperationCounts({ created: 1 }),
     } satisfies Partial<RepositorySyncError>);
   });
+
+  it("rejects an unvalidated plan", async () => {
+    const executor = new SyncExecutor(new RecordingClient(), false, () => {});
+
+    await expect(executor.apply("matharts/example", {} as SyncPlan)).rejects.toThrow(
+      "apply 需要已验证的 SyncPlan",
+    );
+  });
+
+  it("applies update, unchanged, and legacy-alias entries", async () => {
+    const client = new RecordingClient();
+    const lines: string[] = [];
+    const plan = new SyncPlan([
+      { action: "update", name: "bug", desired: bug },
+      { action: "unchanged", name: bug.name },
+      { action: "delete", name: "bug", reason: "legacy_alias" },
+    ]);
+
+    await new SyncExecutor(client, false, (line) => lines.push(line)).apply(
+      "matharts/example",
+      plan,
+    );
+
+    expect(client.calls).toEqual([
+      "update:matharts/example:bug->type: bug",
+      "delete:matharts/example:bug",
+    ]);
+    expect(lines).toContain("UNCHANGED       type: bug");
+    expect(lines).toContain("DELETE     legacy alias bug");
+  });
+
+  it("preserves a repository error and stringifies a non-Error failure", async () => {
+    const repositoryError = new RepositorySyncError("already wrapped", new OperationCounts());
+    const wrappedClient = new RecordingClient();
+    wrappedClient.createLabel = async () => {
+      throw repositoryError;
+    };
+    const stringClient = new RecordingClient();
+    stringClient.createLabel = async () => {
+      throw "plain failure";
+    };
+    const plan = new SyncPlan([{ action: "create", name: bug.name, desired: bug }]);
+
+    await expect(
+      new SyncExecutor(wrappedClient, false, () => {}).apply("matharts/example", plan),
+    ).rejects.toBe(repositoryError);
+    await expect(
+      new SyncExecutor(stringClient, false, () => {}).apply("matharts/example", plan),
+    ).rejects.toThrow("plain failure");
+  });
 });
