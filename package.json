@@ -1,6 +1,6 @@
 {
   "name": "sync-labels-action",
-  "version": "1.5.0-rc.1",
+  "version": "1.5.0",
   "private": true,
   "description": "Synchronize organization-owned GitHub labels while preserving repository-specific labels.",
   "scripts": {
