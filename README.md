@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: matharts/sync-labels-action@4cd0e3b695ae1a8ef78d131e4b32029f275b2bf0
+      - uses: matharts/sync-labels-action@efec2bf147ef88ab46ee87a7e57a4210d4725954
         with:
           token: ${{ secrets.SYNC_LABELS_TOKEN }}
           owner: ${{ github.repository_owner }}
@@ -157,7 +157,7 @@ repositories:
 
 ```yaml
 - id: labels
-  uses: matharts/sync-labels-action@4cd0e3b695ae1a8ef78d131e4b32029f275b2bf0
+  uses: matharts/sync-labels-action@efec2bf147ef88ab46ee87a7e57a4210d4725954
   with:
     token: ${{ secrets.SYNC_LABELS_TOKEN }}
     owner: ${{ github.repository_owner }}
@@ -255,7 +255,7 @@ Action 在读取任何仓库标签前校验两份配置。无效配置不会触�
 
 ```yaml
 - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-- uses: matharts/sync-labels-action@4cd0e3b695ae1a8ef78d131e4b32029f275b2bf0
+- uses: matharts/sync-labels-action@efec2bf147ef88ab46ee87a7e57a4210d4725954
   with:
     validate_only: "true"
 ```
