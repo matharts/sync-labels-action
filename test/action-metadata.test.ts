@@ -32,10 +32,15 @@ describe("action metadata", () => {
     expect(metadata.inputs.repository?.description).toContain("repositories.exclude");
     expect(metadata.inputs.token?.required).toBe(false);
     expect(metadata.inputs.owner?.required).toBe(false);
+    expect(metadata.inputs.config_file?.default).toBe(".github/labels.yml");
+    expect(metadata.inputs.policy_file?.default).toBe(".github/label-policy.yml");
+    expect(metadata.inputs.dry_run?.default).toBe("true");
     expect(metadata.inputs.validate_only).toMatchObject({
       required: false,
       default: "false",
     });
+    expect(metadata.inputs.repository?.default).toBe("");
+    expect(metadata.inputs.api_url?.default).toBe("https://api.github.com");
     expect(metadata.inputs.validate_only?.description).toContain("不访问 GitHub API");
     expect(Object.keys(metadata.outputs).sort()).toEqual(outputNames.sort());
     expect(metadata.outputs.changed?.description).toBe(
