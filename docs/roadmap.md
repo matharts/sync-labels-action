@@ -8,13 +8,13 @@
 
 项目一次只交付一个次版本。条件版本的 Milestone 保留预期顺序，但不承诺发布日期或最终范围。
 
-| 版本                                                                   | 状态     | 主要结果                             | 启动条件                       |
-| ---------------------------------------------------------------------- | -------- | ------------------------------------ | ------------------------------ |
-| [`v1.4.0`](https://github.com/matharts/sync-labels-action/milestone/1) | 已发布   | Node.js 24 与整次运行删除保护        | 已完成生产验证                 |
-| [`v1.5.0`](https://github.com/matharts/sync-labels-action/milestone/2) | 当前版本 | 限定仓库范围，并离线校验配置         | `v1.4.0` 已发布                |
-| [`v1.6.0`](https://github.com/matharts/sync-labels-action/milestone/3) | 条件版本 | 提供稳定、可自动处理的故障诊断       | 真实故障样本证明现有报告不足   |
-| [`v1.7.0`](https://github.com/matharts/sync-labels-action/milestone/4) | 条件版本 | 输出可长期归档和比较的运行计划       | 实际使用方提出审计或审批需求   |
-| [`v1.8.0`](https://github.com/matharts/sync-labels-action/milestone/5) | 条件版本 | 根据代表性运行数据降低多仓库同步时间 | 测量证明串行网络等待是主要瓶颈 |
+| 版本                                                                   | 状态                 | 主要结果                             | 启动条件                       |
+| ---------------------------------------------------------------------- | -------------------- | ------------------------------------ | ------------------------------ |
+| [`v1.4.0`](https://github.com/matharts/sync-labels-action/milestone/1) | 已发布               | Node.js 24 与整次运行删除保护        | 已完成生产验证                 |
+| [`v1.5.0`](https://github.com/matharts/sync-labels-action/milestone/2) | 当前版本，候选准备中 | 限定仓库范围，并离线校验配置         | 功能代码与契约测试已完成       |
+| [`v1.6.0`](https://github.com/matharts/sync-labels-action/milestone/3) | 条件版本             | 提供稳定、可自动处理的故障诊断       | 真实故障样本证明现有报告不足   |
+| [`v1.7.0`](https://github.com/matharts/sync-labels-action/milestone/4) | 条件版本             | 输出可长期归档和比较的运行计划       | 实际使用方提出审计或审批需求   |
+| [`v1.8.0`](https://github.com/matharts/sync-labels-action/milestone/5) | 条件版本             | 根据代表性运行数据降低多仓库同步时间 | 测量证明串行网络等待是主要瓶颈 |
 
 条件版本只有在启动信号满足后才确定范围和日期。安全修复、GitHub 应用程序编程接口（API）不兼容和当前版本回归可以直接进入补丁版本。
 
@@ -44,21 +44,20 @@
 
 完整交付内容和生产验证证据由 [`v1.4.0` Release](https://github.com/matharts/sync-labels-action/releases/tag/v1.4.0)和已关闭的 [`v1.4.0` Milestone](https://github.com/matharts/sync-labels-action/milestone/1?closed=1)保存。
 
-## 当前版本：v1.5.0
+## 当前版本：v1.5.0（候选准备中）
 
-`v1.5.0` 让维护者排除不应同步的仓库，并在不提供 GitHub 凭据、不访问网络的情况下验证标签和仓库策略。
+`main` 已实现 `v1.5.0` 的功能范围和公开契约；当前公开版本、包版本、README 发布徽章与固定提交示例仍为 `v1.4.0`，下一步是准备候选版本。`v1.5.0` 让维护者排除不应同步的仓库，并在不提供 GitHub 凭据、不访问网络的情况下验证标签和仓库策略。
 
-### 交付范围
+### 当前代码能力
 
-本版本交付仓库排除规则和离线配置校验：
+当前代码在 `v1.4.0` 兼容基线上增加以下能力：
 
-- 为 `label-policy.yml` 的 `repositories` 增加 `exclude`
-- 固定选择顺序：全部仓库或 `include` → `exclude` → 可选 `repository` input
-- 拒绝同时出现在 `include` 和 `exclude` 中的仓库
-- 显式选择被排除仓库时返回错误，不静默跳过
-- 增加 `validate_only` Action input，只解析并交叉校验标签和策略文件
-- 提供复用 `GovernanceConfig` 的本地校验命令
-- 统一 `changed` 在实现、Action metadata、README、任务摘要和测试中的描述
+- `RepositoryScope` 统一处理全部仓库、`include`、`exclude`、可选 `repository` input 和仓库状态规则；选择顺序固定为全部仓库或 `include` → `exclude` → 可选 `repository` input
+- 配置解析会拒绝重叠、重复或无效的仓库名称；显式选择被排除或不在 allowlist 中的仓库会在访问 GitHub API 前失败
+- 全部仓库模式会跳过 archived、disabled 和 fork 仓库；显式选择或 allowlist 命中这些状态时会失败，避免静默扩大或改变范围
+- `validate_only` 只加载并交叉校验标签与策略文件，不要求 token 或 owner，不创建 GitHub 客户端，成功时所有同步输出为零
+- `pnpm validate:config` 与 Action 复用 `GovernanceConfig`，并支持通过 `--config-file` 和 `--policy-file` 覆盖默认路径
+- `changed` 的描述已在实现、Action metadata、README、任务摘要和契约测试中统一
 
 `changed` 的现有运行语义不变：
 
@@ -66,44 +65,47 @@
 - 写入模式表示是否实际完成变更
 - 安全检查在首个写请求前阻止运行时为 `false`
 
-### 执行图
+### 交付进度
 
-原生 Issue 依赖关系规定以下执行顺序：
+功能 Issue 已落地到 `main`；剩余工作只涉及候选版本、生产演练和正式发布。原生 Issue 依赖关系继续规定发布顺序。
 
-| Issue                                                                                  | 交付内容                       | 前置条件       |
-| -------------------------------------------------------------------------------------- | ------------------------------ | -------------- |
-| [#28 `repositories.exclude`](https://github.com/matharts/sync-labels-action/issues/28) | 仓库排除策略                   | 无未关闭阻塞项 |
-| [#29 `validate_only`](https://github.com/matharts/sync-labels-action/issues/29)        | Action 离线校验模式            | 无未关闭阻塞项 |
-| [#43 `changed` 输出契约](https://github.com/matharts/sync-labels-action/issues/43)     | 统一公开描述和契约测试         | 无未关闭阻塞项 |
-| [#30 本地配置校验命令](https://github.com/matharts/sync-labels-action/issues/30)       | 复用 Action 规则的本地命令     | #29            |
-| [#31 准备候选版本](https://github.com/matharts/sync-labels-action/issues/31)           | 固定候选提交和版本元数据       | #28、#30、#43  |
-| [#32 完成生产演练](https://github.com/matharts/sync-labels-action/issues/32)           | 验证范围控制、离线校验和兼容性 | #31            |
-| [#33 发布正式版本](https://github.com/matharts/sync-labels-action/issues/33)           | 发布版本并更新固定引用         | #32            |
+| Issue                                                                                  | 代码状态 | 证据或下一步                                                              |
+| -------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------- |
+| [#28 `repositories.exclude`](https://github.com/matharts/sync-labels-action/issues/28) | 已实现   | `RepositoryScope`、配置交叉校验和接口测试已由 PR #46 交付                 |
+| [#29 `validate_only`](https://github.com/matharts/sync-labels-action/issues/29)        | 已实现   | `RuntimeOptions` 校验模式、零 GitHub 客户端路径和零值输出已由 PR #47 交付 |
+| [#43 `changed` 输出契约](https://github.com/matharts/sync-labels-action/issues/43)     | 已完成   | 预览与写入语义、Action metadata、摘要和契约测试已由 PR #48 统一           |
+| [#30 本地配置校验命令](https://github.com/matharts/sync-labels-action/issues/30)       | 已实现   | 复用 `GovernanceConfig` 的 `pnpm validate:config` 已由 PR #49 交付        |
+| [#31 准备候选版本](https://github.com/matharts/sync-labels-action/issues/31)           | 下一步   | 更新仍固定在 `v1.4.0` 的版本元数据，构建并固定候选提交                    |
+| [#32 完成生产演练](https://github.com/matharts/sync-labels-action/issues/32)           | 等待 #31 | 对候选提交验证范围控制、离线校验和现有 workflow 兼容性                    |
+| [#33 发布正式版本](https://github.com/matharts/sync-labels-action/issues/33)           | 等待 #32 | 发布经演练的候选提交，并更新正式版本和固定引用                            |
 
-### 架构演进顺序
+### 架构演进结果
 
-以下架构工作服务于已有交付，不增加独立功能范围。编号表示建议优先级，不覆盖原生 Issue 依赖关系或每个 Pull Request 的既定范围。
+架构深化已随功能落地，不增加独立功能范围：
 
-| 顺序 | 深化方向                        | 承载工作        | 路线图约束                                                                                                                                                           |
-| ---- | ------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | 深化仓库范围模块（module）      | #28             | 将 `include`、`exclude`、指定仓库、选择顺序和仓库资格规则集中在一个接口（interface）后；GitHub adapter 保留为模块实现内部的 seam，配置解析与仓库选择通过同一接口测试 |
-| 2    | 深化调用模式模块（module）      | #29、#30        | 将模式专属前置要求、默认值和流程选择集中在一个接口后；`validate_only` 不创建 GitHub adapter，本地命令与 Action 复用同一配置校验实现                                  |
-| 3    | 深化运行结果模块（`RunResult`） | #43；条件式 #34 | 仅在统一现有 `changed`、计数、安全、阶段和成功状态确有需要时，把一致性规则集中到 `RunResult` 实现；v1.5 不改变公开语义，也不提前引入稳定故障分类                     |
+| 模块                     | 当前结果                                                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `RepositoryScope`        | 集中仓库范围解析、选择顺序、显式仓库限制和仓库资格规则；配置与选择通过同一接口测试                                           |
+| `RuntimeOptions`         | 使用 `validate`、`preview`、`apply` 判别模式集中模式专属前置要求与默认值；校验模式不会创建 GitHub adapter                    |
+| `GovernanceConfig`       | Action 与本地命令共享同一配置加载、规范化和交叉校验实现                                                                      |
+| `RunResult` 与 reporting | 保留现有运行结果 seam，由同一结果派生摘要、计数、失败状态和 `changed`；v1.5 不改变公开语义，也不提前引入 v1.6 的稳定故障分类 |
 
-前两项分别为仓库范围和调用模式提供 locality，并让一个实现通过多个调用方与测试产生 leverage。第三项先保留现有 seam；若 #43 不需要改变模块形状，则等 #34 的真实故障样本满足 v1.6 启动信号后再评估。
+### 发布门槛与剩余工作
 
-### 发布门槛
-
-满足以下条件后才能发布 `v1.5.0`：
+从当前代码和契约测试可验证的门槛已经满足：
 
 - 全部仓库、仅 `include`、仅 `exclude`、组合规则和显式单仓库都有接口测试
 - archived、disabled、fork 和 `exclude` 的组合不会扩大同步范围
-- `validate_only` 不要求 token 或 owner，在断网环境中的 GitHub API 调用数为零
-- 本地命令与 Action 对同一配置返回相同的校验结果
-- 未设置新 input 的 `v1.4.0` workflow 行为不变
-- `changed`、操作计数和失败状态的语义在所有公开接口中一致
-- 候选版本完成全组织预览、离线校验和现有 workflow 兼容性演练
-- 正式版本指向经过演练的候选提交
+- `validate_only` 不要求 token 或 owner，且不会创建 GitHub 客户端
+- 本地命令与 Action 使用同一个 `GovernanceConfig` 校验入口
+- 未设置新 input 的运行保持 Ruby `v1.3` 与 `v1.4.0` 兼容基线
+- `changed`、操作计数和失败状态的语义在公开描述和契约测试中一致
+
+发布 `v1.5.0` 前仍须完成：
+
+- 准备候选版本，更新版本元数据并固定候选提交
+- 对候选版本完成全组织预览、离线校验和现有 workflow 兼容性演练
+- 确认正式版本指向经过演练的候选提交，并更新正式版本和固定引用
 
 ### 不属于 v1.5.0
 
