@@ -34,10 +34,10 @@ export function renderSummary(runResult: RunResult, context: SummaryContext): st
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
   ];
 
-  for (const result of runResult.results) {
+  for (const result of runResult.outcomes) {
     const counts = result.counts;
     lines.push(
-      `| \`${result.repository}\` | ${result.status} | ${counts.created} | ${counts.updated} | ` +
+      `| \`${result.repository}\` | ${outcomeStatus(result)} | ${counts.created} | ${counts.updated} | ` +
       `${counts.renamed} | ${counts.deleted} | ${counts.unchanged} | ${counts.preserved} |`,
     );
   }
@@ -56,7 +56,7 @@ export function renderSummary(runResult: RunResult, context: SummaryContext): st
 export function actionOutputs(runResult: RunResult): ActionOutputs {
   const totals = runResult.totals;
   return {
-    repositories: runResult.results.length,
+    repositories: runResult.outcomes.length,
     changed: changed(totals),
     created: totals.created,
     updated: totals.updated,
@@ -66,4 +66,9 @@ export function actionOutputs(runResult: RunResult): ActionOutputs {
     preserved: totals.preserved,
     failures: runResult.failures.length,
   };
+}
+
+function outcomeStatus(outcome: RunResult["outcomes"][number]): string {
+  if (outcome.kind === "failure") return "失败";
+  return outcome.mode === "preview" ? "预览完成" : "同步完成";
 }

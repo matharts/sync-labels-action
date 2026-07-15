@@ -1,17 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { GitHubClientPort, Repository } from "../src/github-client";
-import type { ExistingLabel, LabelDefinition } from "../src/label-types";
+import type { LabelWriterPort } from "../src/github-port";
+import type { LabelDefinition } from "../src/label-types";
 import { SyncExecutor } from "../src/sync-executor";
 import { SyncPlan } from "../src/sync-plan";
 import { RepositorySyncError } from "../src/sync-result";
 
-class RecordingClient implements GitHubClientPort {
+class RecordingClient implements LabelWriterPort {
   readonly calls: string[] = [];
 
-  async listOrganizationRepositories(_owner: string): Promise<readonly Repository[]> { return []; }
-  async getRepository(_owner: string, _name: string): Promise<Repository> { throw new Error("unused"); }
-  async listLabels(_fullName: string): Promise<readonly ExistingLabel[]> { return []; }
   async createLabel(fullName: string, desired: LabelDefinition): Promise<void> {
     this.calls.push(`create:${fullName}:${desired.name}`);
   }

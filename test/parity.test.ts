@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { GitHubClient, type HttpRequest } from "../src/github-client";
 import { GovernanceConfig } from "../src/governance-config";
-import { escapePathSegment, labelKey, repositoryPath } from "../src/label-identity";
+import { labelKey } from "../src/label-identity";
 import type { LabelDefinition, PlanningConfig } from "../src/label-types";
 import { actionOutputs, renderSummary } from "../src/reporting";
 import { RepositorySelector } from "../src/repository-selector";
@@ -236,18 +236,22 @@ describe("Ruby v1.3 behavior parity", () => {
     expect(output).toEqual(rubyV13.partial_failure.output_lines);
   });
 
-  it("matches summaries, outputs, Unicode normalization, and URL escaping", () => {
-    const result = new RunResult(
-      [
-        {
-          repository: "matharts/example",
-          status: "同步完成",
-          counts: { ...zeroCounts(), created: 1, updated: 2, deleted: 1, unchanged: 3, preserved: 4 },
-        },
-        { repository: "matharts/failing", status: "失败", counts: zeroCounts() },
-      ],
-      [{ repository: "matharts/failing", error: "bad | input\nsecond line" }],
-    );
+  it("matches summaries, outputs, Unicode normalization, and URL escaping", async () => {
+    const result = new RunResult([
+      {
+        kind: "success",
+        repository: "matharts/example",
+        mode: "apply",
+        counts: { ...zeroCounts(), created: 1, updated: 2, deleted: 1, unchanged: 3, preserved: 4 },
+      },
+      {
+        kind: "failure",
+        repository: "matharts/failing",
+        phase: "execution",
+        error: "bad | input\nsecond line",
+        counts: zeroCounts(),
+      },
+    ]);
 
     expect(renderSummary(result, {
       owner: "matharts",
@@ -260,10 +264,17 @@ describe("Ruby v1.3 behavior parity", () => {
     for (const [input, expected] of Object.entries(rubyV13.unicode.keys)) {
       expect(labelKey(input)).toBe(expected);
     }
-    for (const [input, expected] of Object.entries(rubyV13.unicode.escaped)) {
-      expect(escapePathSegment(input)).toBe(expected);
-    }
-    expect(repositoryPath("math arts/同步~test")).toBe(rubyV13.unicode.repository_path);
+    const pathRequests: HttpRequest[] = [];
+    const pathClient = new GitHubClient({
+      token: "fixture-token",
+      baseUrl: "https://api.example.test",
+      requester: (request) => recordRequest(pathRequests, request),
+    });
+    const [labelName, escapedLabelName] = Object.entries(rubyV13.unicode.escaped)[0]!;
+    await pathClient.deleteLabel("math arts/同步~test", labelName);
+    expect(new URL(pathRequests[0]!.url).pathname).toBe(
+      `/repos/${rubyV13.unicode.repository_path}/labels/${escapedLabelName}`,
+    );
 
     const unicodePlan = new SyncPlanner({
       labels: [{ name: "type: bug", color: "D73A4A", description: "", aliases: [] }],

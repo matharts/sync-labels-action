@@ -41,6 +41,10 @@ managed:
   legacy_names: [bug]
 repositories:
   include: [example, docs]
+safety:
+  deletions: deny
+  max_deletions_per_repository: 2
+  max_deletions_total: 3
 `,
     );
 
@@ -51,6 +55,11 @@ repositories:
       { name: "help wanted", color: "008672", description: "", aliases: [] },
     ]);
     expect(config.repositoryNames).toEqual(["example", "docs"]);
+    expect(config.safety).toEqual({
+      deletions: "deny",
+      maxDeletionsPerRepository: 2,
+      maxDeletionsTotal: 3,
+    });
     expect(config.allRepositories).toBe(false);
     expect(config.managed("TYPE: obsolete")).toBe(true);
     expect(config.managed("custom")).toBe(false);

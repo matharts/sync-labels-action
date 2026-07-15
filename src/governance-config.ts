@@ -2,24 +2,29 @@ import { readFile } from "node:fs/promises";
 
 import { parseDocument } from "yaml";
 
+import { validatedLabelDefinition } from "./label-definition";
 import { labelKey } from "./label-identity";
 import type { LabelDefinition, PlanningConfig } from "./label-types";
+import type { RunSafetyPolicy } from "./run-plan";
 
 interface GovernancePolicy {
   readonly prefixes: readonly string[];
   readonly exactNames: ReadonlySet<string>;
   readonly legacyNames: ReadonlySet<string>;
   readonly repositoryNames: readonly string[] | undefined;
+  readonly safety: RunSafetyPolicy;
 }
 
 export class GovernanceConfig implements PlanningConfig {
   readonly labels: readonly LabelDefinition[];
   readonly repositoryNames: readonly string[] | undefined;
+  readonly safety: RunSafetyPolicy;
   readonly #policy: GovernancePolicy;
 
   private constructor(labels: readonly LabelDefinition[], policy: GovernancePolicy) {
-    this.labels = Object.freeze(labels.map(immutableLabel));
+    this.labels = Object.freeze([...labels]);
     this.repositoryNames = policy.repositoryNames;
+    this.safety = policy.safety;
     this.#policy = policy;
     Object.freeze(this);
   }
@@ -94,23 +99,10 @@ function loadLabels(parsed: unknown, path: string): readonly LabelDefinition[] {
     const description = rubyString(value.description).trim();
     const aliases = toArray(value.aliases).map((alias) => rubyString(alias).trim());
 
-    if (name.length === 0) {
-      throw new Error(`${path} 第 ${index + 1} 项缺少 name。`);
-    }
-    if (codePointLength(name) > 50) {
-      throw new Error(`标签名称超过 50 个字符：${name}`);
-    }
-    if (!/^[0-9A-F]{6}$/.test(color)) {
-      throw new Error(`${name} 的 color 必须是六位十六进制值。`);
-    }
-    if (codePointLength(description) > 100) {
-      throw new Error(`${name} 的 description 超过 100 个字符。`);
-    }
-    if (aliases.some((alias) => alias.length === 0)) {
-      throw new Error(`${name} 的 aliases 不能包含空值。`);
-    }
-
-    return { name, color, description, aliases };
+    return validatedLabelDefinition(
+      { name, color, description, aliases },
+      `${path} 第 ${index + 1} 项的标签 `,
+    );
   });
 
   const desiredNames = labels.map(({ name }) => labelKey(name));
@@ -121,11 +113,6 @@ function loadLabels(parsed: unknown, path: string): readonly LabelDefinition[] {
   const desiredSet = new Set(desiredNames);
   const aliasOwners = new Map<string, string>();
   for (const label of labels) {
-    const normalizedAliases = label.aliases.map(labelKey);
-    if (new Set(normalizedAliases).size !== normalizedAliases.length) {
-      throw new Error(`${label.name} 包含重复 aliases。`);
-    }
-
     for (const alias of label.aliases) {
       const aliasKey = labelKey(alias);
       if (desiredSet.has(aliasKey)) {
@@ -147,7 +134,7 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
     throw new Error(`${path} 的 YAML 根节点必须是对象。`);
   }
 
-  rejectUnknownKeys(parsed, new Set(["version", "managed", "repositories"]), `${path} 包含未知根字段`);
+  rejectUnknownKeys(parsed, new Set(["version", "managed", "repositories", "safety"]), `${path} 包含未知根字段`);
   if (parsed.version !== 1) {
     throw new Error(`${path} 的 version 必须是 1。`);
   }
@@ -158,6 +145,10 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
   if (!isRecord(repositories)) {
     throw new Error(`${path} 的 repositories 必须是对象。`);
   }
+  const safetyValue = parsed.safety ?? {};
+  if (!isRecord(safetyValue)) {
+    throw new Error(`${path} 的 safety 必须是对象。`);
+  }
 
   rejectUnknownKeys(
     parsed.managed,
@@ -165,6 +156,7 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
     `${path} 的 managed 包含未知字段`,
   );
   rejectUnknownKeys(repositories, new Set(["include"]), `${path} 的 repositories 包含未知字段`);
+  const safety = loadSafety(safetyValue, path);
 
   const prefixes = policyStringList(parsed.managed, "prefixes", path, false);
   const exactNames = policyStringList(parsed.managed, "exact_names", path, true);
@@ -194,7 +186,41 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
     exactNames: exactKeys,
     legacyNames: legacyKeys,
     repositoryNames: repositoryNames === undefined ? undefined : Object.freeze([...repositoryNames]),
+    safety,
   });
+}
+
+function loadSafety(value: Readonly<Record<string, unknown>>, path: string): RunSafetyPolicy {
+  rejectUnknownKeys(
+    value,
+    new Set(["deletions", "max_deletions_per_repository", "max_deletions_total"]),
+    `${path} 的 safety 包含未知字段`,
+  );
+
+  const deletions = value.deletions ?? "allow";
+  if (deletions !== "allow" && deletions !== "deny") {
+    throw new Error(`${path} 的 safety.deletions 必须是 allow 或 deny。`);
+  }
+  const perRepository = optionalNonnegativeInteger(
+    value.max_deletions_per_repository,
+    path,
+    "max_deletions_per_repository",
+  );
+  const total = optionalNonnegativeInteger(value.max_deletions_total, path, "max_deletions_total");
+
+  return Object.freeze({
+    deletions,
+    ...(perRepository === undefined ? {} : { maxDeletionsPerRepository: perRepository }),
+    ...(total === undefined ? {} : { maxDeletionsTotal: total }),
+  });
+}
+
+function optionalNonnegativeInteger(value: unknown, path: string, key: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new Error(`${path} 的 safety.${key} 必须是非负整数。`);
+  }
+  return value as number;
 }
 
 function policyStringList(
@@ -249,10 +275,6 @@ function managedLabel(name: string, policy: GovernancePolicy): boolean {
   return desiredLabelManaged(name, policy) || policy.legacyNames.has(labelKey(name));
 }
 
-function immutableLabel(label: LabelDefinition): LabelDefinition {
-  return Object.freeze({ ...label, aliases: Object.freeze([...label.aliases]) });
-}
-
 function rejectUnknownKeys(value: Readonly<Record<string, unknown>>, allowed: ReadonlySet<string>, prefix: string): void {
   const unknown = Object.keys(value)
     .filter((key) => !allowed.has(key))
@@ -269,10 +291,6 @@ function toArray(value: unknown): unknown[] {
 
 function rubyString(value: unknown): string {
   return value === undefined || value === null ? "" : String(value);
-}
-
-function codePointLength(value: string): number {
-  return [...value].length;
 }
 
 function convertSafeYamlValue(value: unknown): unknown {
