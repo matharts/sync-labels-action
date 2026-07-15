@@ -143,10 +143,18 @@ ready
 
 MathArts 的生产配置省略 `repositories.include`，同步令牌可见的全部合格组织仓库。新建的非 archived、非 disabled、非 fork 仓库会自动进入同步范围。
 
+- 生产策略显式设置 `deletions: allow`、单仓库删除上限 `1` 和整次运行删除上限 `6`
+- [2026-07-15 全组织预览](https://github.com/matharts/sync-labels-action/actions/runs/29416932472) 覆盖 6 个合格仓库，计划删除为 0
+- 单仓库上限允许一次只清理一个受管标签；总上限允许该标签覆盖当前全部合格仓库，但会阻止范围继续扩大
 - [`preview-labels.yml`](../.github/workflows/preview-labels.yml) 使用只读权限预览差异
 - [`sync-labels.yml`](../.github/workflows/sync-labels.yml) 只能从 `main` 手动触发真实修改
 - 同步实现由独立的 [`matharts/sync-labels-action`](https://github.com/matharts/sync-labels-action) 仓库维护，并固定到经过审核的提交 SHA
 - 真实同步受 `label-governance-production` Environment 和 GitHub App 最小权限保护
+
+计划删除超过日常基线时，维护者必须先保存全组织 dry-run 证据，再通过 Pull Request 把上限临时调整为
+已审查的计划数量。清理完成并验证零差异后，恢复
+[`.github/label-policy.yml`](../.github/label-policy.yml) 中记录的日常基线。需要完全冻结删除时改为
+`deletions: deny`；移除整个 `safety` 配置会恢复 v1.3 的兼容默认行为（允许删除且没有数量上限），不得作为生产恢复步骤。
 
 新增、归档、转移或删除仓库时，必须检查 GitHub App 安装范围和仓库状态。先运行预览并审查创建、重命名、更新、删除和保留项，再批准真实同步。
 

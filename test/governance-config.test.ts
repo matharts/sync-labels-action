@@ -80,6 +80,17 @@ safety:
     expect(config.labels[0]?.description).toBe("true");
   });
 
+  it("preserves the v1.3 deletion behavior when safety is omitted", async () => {
+    const [labelsPath, policyPath] = await writeConfiguration(
+      '- name: "type: bug"\n  color: "D73A4A"\n',
+      'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\n',
+    );
+
+    const config = await GovernanceConfig.load({ labelsPath, policyPath });
+
+    expect(config.safety).toEqual({ deletions: "allow" });
+  });
+
   it("rejects YAML object types that Ruby safe_load did not permit", async () => {
     const [labelsPath, policyPath] = await writeConfiguration(
       '- name: "type: bug"\n  color: "D73A4A"\n  description: 2020-01-01\n',
@@ -155,5 +166,10 @@ safety:
     expect(config.allRepositories).toBe(true);
     expect(config.repositoryNames).toBeUndefined();
     expect(config.labels.length).toBeGreaterThan(20);
+    expect(config.safety).toEqual({
+      deletions: "allow",
+      maxDeletionsPerRepository: 1,
+      maxDeletionsTotal: 6,
+    });
   });
 });
