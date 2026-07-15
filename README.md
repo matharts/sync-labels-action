@@ -1,5 +1,10 @@
 # 在多个 GitHub 仓库间同步标签
 
+[![Release](https://badges.ws/badge/release-v1.3.0-blue?icon=github&iconColor=white)](https://github.com/matharts/sync-labels-action/releases/tag/v1.3.0)
+[![Codecov](https://badges.ws/codecov/c/github/matharts/sync-labels-action/main?icon=codecov&iconColor=white)](https://app.codecov.io/gh/matharts/sync-labels-action)
+[![Node.js 24](https://badges.ws/badge/Node.js-24-339933?icon=nodedotjs&iconColor=white)](action.yml)
+[![License](https://badges.ws/badge/license-MIT-blue)](LICENSE)
+
 MathArts Sync Labels 用一份标签清单和一份所有权策略统一组织内的 GitHub 标签。Action 默认只预览变更，只删除策略明确声明为组织所有的标签，并保留各仓库自己的标签。
 
 你需要维护三份文件：
