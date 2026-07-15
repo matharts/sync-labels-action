@@ -1,9 +1,8 @@
-import { Application } from "./application";
-import { GitHubClient, type GitHubClientPort } from "./github-client";
+import { Application, type ActionLogger } from "./application";
+import { GitHubClient } from "./github-client";
+import type { GitHubPort } from "./github-port";
 import { GovernanceConfig } from "./governance-config";
 import { actionOutputs, renderSummary } from "./reporting";
-import type { ActionLogger } from "./repository-synchronizer";
-import { RepositorySynchronizer } from "./repository-synchronizer";
 import { RepositorySelector } from "./repository-selector";
 import { RuntimeOptions } from "./runtime-options";
 
@@ -16,7 +15,7 @@ export interface ActionRuntime extends ActionLogger {
 }
 
 interface ActionDependencies {
-  readonly createClient?: (options: { readonly token: string; readonly baseUrl: string }) => GitHubClientPort;
+  readonly createClient?: (options: { readonly token: string; readonly baseUrl: string }) => GitHubPort;
 }
 
 export async function runAction(runtime: ActionRuntime, dependencies: ActionDependencies = {}): Promise<void> {
@@ -50,14 +49,12 @@ export async function runAction(runtime: ActionRuntime, dependencies: ActionDepe
     runtime.info(`Repositories: ${repositories.length}`);
     runtime.info("");
 
-    const synchronizer = new RepositorySynchronizer(client, config, options.dryRun, runtime);
-    const result = await new Application(repositories, synchronizer, options.dryRun, runtime).run();
+    const result = await new Application({ client, config, dryRun: options.dryRun, logger: runtime }).run(repositories);
 
     await runtime.writeSummary(renderSummary(result, {
       owner: options.owner,
       configFile: options.configFile,
       policyFile: options.policyFile,
-      dryRun: options.dryRun,
     }));
     for (const [name, value] of Object.entries(actionOutputs(result))) {
       runtime.setOutput(name, value);
@@ -67,7 +64,7 @@ export async function runAction(runtime: ActionRuntime, dependencies: ActionDepe
       runtime.setFailed(`${result.failures.length} 个仓库同步失败。`);
       return;
     }
-    runtime.info(options.dryRun ? "Dry Run 完成。" : "标签同步完成。");
+    runtime.info(result.mode === "preview" ? "Dry Run 完成。" : "标签同步完成。");
   } catch (error) {
     runtime.setFailed(errorMessage(error));
   }

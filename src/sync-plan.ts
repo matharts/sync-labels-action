@@ -1,4 +1,5 @@
 import type { LabelDefinition } from "./label-types";
+import { validatedLabelDefinition } from "./label-definition";
 import type { SyncCounts } from "./sync-result";
 import { zeroCounts } from "./sync-result";
 
@@ -117,18 +118,5 @@ function immutableLabel(value: LabelDefinition, action: "create" | "update" | "r
   if (typeof value !== "object" || value === null) {
     throw new TypeError(`${action} 操作缺少目标标签。`);
   }
-
-  const missing = ["name", "color", "description"].filter(
-    (key) => !Object.prototype.hasOwnProperty.call(value, key),
-  );
-  if (missing.length > 0) {
-    throw new TypeError(`${action} 操作的目标标签缺少字段：${missing.join(", ")}`);
-  }
-
-  return Object.freeze({
-    name: value.name,
-    color: value.color,
-    description: value.description,
-    aliases: Object.freeze([...(value.aliases ?? [])]),
-  });
+  return validatedLabelDefinition(value, `${action} 操作的目标标签 `);
 }

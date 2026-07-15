@@ -1,21 +1,6 @@
-import { escapePathSegment, repositoryPath } from "./label-identity";
+import type { GitHubPort } from "./github-port";
 import type { ExistingLabel, LabelDefinition } from "./label-types";
-
-export interface Repository {
-  readonly fullName: string;
-  readonly archived: boolean;
-  readonly disabled: boolean;
-  readonly fork: boolean;
-}
-
-export interface GitHubClientPort {
-  listOrganizationRepositories(owner: string): Promise<readonly Repository[]>;
-  getRepository(owner: string, name: string): Promise<Repository>;
-  listLabels(fullName: string): Promise<readonly ExistingLabel[]>;
-  createLabel(fullName: string, desired: LabelDefinition): Promise<void>;
-  updateLabel(fullName: string, currentName: string, desired: LabelDefinition): Promise<void>;
-  deleteLabel(fullName: string, name: string): Promise<void>;
-}
+import type { RepositoryMetadata } from "./repository-types";
 
 export interface HttpRequest {
   readonly method: "GET" | "POST" | "PATCH" | "DELETE";
@@ -57,7 +42,7 @@ const TRANSIENT_NETWORK_ERROR_CODES = new Set([
 ]);
 const TRANSIENT_NETWORK_ERROR_NAMES = new Set(["AbortError", "TimeoutError"]);
 
-export class GitHubClient implements GitHubClientPort {
+export class GitHubClient implements GitHubPort {
   readonly #token: string;
   readonly #baseUrl: string;
   readonly #requester: Requester;
@@ -93,12 +78,12 @@ export class GitHubClient implements GitHubClientPort {
     this.#maxRetries = maxRetries;
   }
 
-  async listOrganizationRepositories(owner: string): Promise<readonly Repository[]> {
+  async listOrganizationRepositories(owner: string): Promise<readonly RepositoryMetadata[]> {
     const path = `/orgs/${escapePathSegment(owner)}/repos?type=all&sort=full_name&direction=asc`;
     return (await this.#paginate(path)).map(parseRepository);
   }
 
-  async getRepository(owner: string, name: string): Promise<Repository> {
+  async getRepository(owner: string, name: string): Promise<RepositoryMetadata> {
     const value = await this.#requestJson(
       "GET",
       `/repos/${escapePathSegment(owner)}/${escapePathSegment(name)}`,
@@ -233,7 +218,7 @@ async function performRequest(request: HttpRequest): Promise<HttpResponse> {
   return { status: response.status, headers, body: await response.text() };
 }
 
-function parseRepository(value: unknown): Repository {
+function parseRepository(value: unknown): RepositoryMetadata {
   if (!isRecord(value)) {
     throw new Error("GitHub API 未返回仓库对象。");
   }
@@ -334,4 +319,20 @@ function sleep(delaySeconds: number): Promise<void> {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function escapePathSegment(value: unknown): string {
+  return encodeURIComponent(String(value ?? "")).replace(/[!'()~]/g, (character) =>
+    `%${character.codePointAt(0)?.toString(16).toUpperCase()}`,
+  );
+}
+
+function repositoryPath(fullName: string): string {
+  const separator = fullName.indexOf("/");
+  const owner = separator >= 0 ? fullName.slice(0, separator) : "";
+  const repository = separator >= 0 ? fullName.slice(separator + 1) : "";
+  if (owner.length === 0 || repository.length === 0) {
+    throw new Error(`无效仓库名称：${JSON.stringify(fullName)}`);
+  }
+  return `${escapePathSegment(owner)}/${escapePathSegment(repository)}`;
 }

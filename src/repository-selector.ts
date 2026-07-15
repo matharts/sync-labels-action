@@ -1,4 +1,5 @@
-import type { GitHubClientPort, Repository } from "./github-client";
+import type { RepositoryCatalogPort } from "./github-port";
+import type { RepositoryMetadata, RepositoryTarget } from "./repository-types";
 
 export interface RepositorySelectionConfig {
   readonly repositoryNames: readonly string[] | undefined;
@@ -6,22 +7,20 @@ export interface RepositorySelectionConfig {
 
 export class RepositorySelector {
   constructor(
-    private readonly client: GitHubClientPort,
+    private readonly client: RepositoryCatalogPort,
     private readonly config: RepositorySelectionConfig,
   ) {}
 
-  async select({ owner, onlyRepository = "" }: { owner: string; onlyRepository?: string }): Promise<readonly Repository[]> {
+  async select({ owner, onlyRepository = "" }: { owner: string; onlyRepository?: string }): Promise<readonly RepositoryTarget[]> {
     let names = this.config.repositoryNames;
     const requested = normalizeRequestedRepository(owner, onlyRepository);
 
     if (names === undefined && requested.length === 0) {
       const repositories = await this.client.listOrganizationRepositories(owner);
-      return Object.freeze(
-        repositories.filter((repository) => {
-          repositoryFullName(repository, owner);
-          return unsupportedRepositoryStates(repository).length === 0;
-        }),
-      );
+      return Object.freeze(repositories.flatMap((repository) => {
+        const fullName = repositoryFullName(repository, owner);
+        return unsupportedRepositoryStates(repository).length === 0 ? [target(fullName)] : [];
+      }));
     }
 
     if (requested.length > 0) {
@@ -35,14 +34,14 @@ export class RepositorySelector {
       names = [selected];
     }
 
-    const repositories: Repository[] = [];
+    const repositories: RepositoryTarget[] = [];
     for (const name of names ?? []) {
       repositories.push(await this.#loadNamedRepository(owner, name, true));
     }
     return Object.freeze(repositories);
   }
 
-  async #loadNamedRepository(owner: string, name: string, allowlisted: boolean): Promise<Repository> {
+  async #loadNamedRepository(owner: string, name: string, allowlisted: boolean): Promise<RepositoryTarget> {
     const repository = await this.client.getRepository(owner, name);
     const fullName = repositoryFullName(repository, owner, name);
     const states = unsupportedRepositoryStates(repository);
@@ -50,7 +49,7 @@ export class RepositorySelector {
       const scope = allowlisted ? "Allowlist 仓库" : "仓库";
       throw new Error(`${scope} ${fullName} 处于不可同步状态：${states.join(", ")}。请更新策略或选择其他仓库。`);
     }
-    return repository;
+    return target(fullName);
   }
 }
 
@@ -74,7 +73,7 @@ function normalizeRequestedRepository(owner: string, rawValue: string): string {
   return value;
 }
 
-function repositoryFullName(repository: Repository, owner: string, expectedName?: string): string {
+function repositoryFullName(repository: RepositoryMetadata, owner: string, expectedName?: string): string {
   const fullName = repository.fullName;
   let matches: boolean;
   let expected: string;
@@ -96,7 +95,7 @@ function repositoryFullName(repository: Repository, owner: string, expectedName?
   return fullName;
 }
 
-function unsupportedRepositoryStates(repository: Repository): string[] {
+function unsupportedRepositoryStates(repository: RepositoryMetadata): string[] {
   const states: string[] = [];
   if (repository.archived) states.push("archived");
   if (repository.disabled) states.push("disabled");
@@ -106,4 +105,8 @@ function unsupportedRepositoryStates(repository: Repository): string[] {
 
 function equalIgnoreCase(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
+}
+
+function target(fullName: string): RepositoryTarget {
+  return Object.freeze({ fullName });
 }

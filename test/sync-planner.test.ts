@@ -131,4 +131,112 @@ describe("SyncPlanner", () => {
       { action: "create", name: desired[0]!.name, desired: desired[0], reason: "legacy_alias" } as never,
     ])).toThrow("create 操作不能包含删除原因");
   });
+
+  it("rejects a desired label with a non-string name", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: 42, color: "D73A4A", description: "bug", aliases: [] },
+    } as never])).toThrow("create 操作的目标标签 name 必须是字符串");
+  });
+
+  it("rejects a desired label with malformed aliases", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "D73A4A", description: "bug", aliases: "bug" },
+    } as never])).toThrow("create 操作的目标标签 aliases 必须是字符串数组");
+  });
+
+  it("rejects a desired label with a non-canonical color", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "#d73a4a", description: "bug", aliases: [] },
+    }])).toThrow("create 操作的目标标签 color 必须是六位大写十六进制值");
+  });
+
+  it("rejects a desired label whose name exceeds GitHub's limit", () => {
+    const name = "😀".repeat(51);
+    expect(() => new SyncPlan([{
+      action: "create",
+      name,
+      desired: { name, color: "D73A4A", description: "bug", aliases: [] },
+    }])).toThrow("create 操作的目标标签 name 超过 50 个字符");
+  });
+
+  it("rejects an empty desired label name", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "", color: "D73A4A", description: "bug", aliases: [] },
+    }])).toThrow("create 操作的目标标签 name 不能为空");
+  });
+
+  it("rejects whitespace-only desired label names", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "   ",
+      desired: { name: "   ", color: "D73A4A", description: "bug", aliases: [] },
+    }])).toThrow("create 操作的目标标签 name 不能为空");
+  });
+
+  it("rejects a desired label description beyond GitHub's limit", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "D73A4A", description: "界".repeat(101), aliases: [] },
+    }])).toThrow("create 操作的目标标签 description 超过 100 个字符");
+  });
+
+  it("rejects empty desired label aliases", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "D73A4A", description: "bug", aliases: [""] },
+    }])).toThrow("create 操作的目标标签 aliases 不能包含空值");
+  });
+
+  it("rejects whitespace-only desired label aliases", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "D73A4A", description: "bug", aliases: ["   "] },
+    }])).toThrow("create 操作的目标标签 aliases 不能包含空值");
+  });
+
+  it("rejects non-canonical surrounding whitespace at the plan boundary", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: " type: bug", color: "D73A4A", description: "bug", aliases: [] },
+    }])).toThrow("create 操作的目标标签 name 不能包含首尾空白");
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "D73A4A", description: "bug", aliases: [" bug"] },
+    }])).toThrow("create 操作的目标标签 aliases 不能包含首尾空白");
+  });
+
+  it("rejects unknown desired label fields", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: {
+        name: "type: bug",
+        color: "D73A4A",
+        description: "bug",
+        aliases: [],
+        unexpected: true,
+      },
+    } as never])).toThrow("create 操作的目标标签 包含未知字段：unexpected");
+  });
+
+  it("rejects duplicate desired label aliases after normalization", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "D73A4A", description: "bug", aliases: ["bug", "BUG"] },
+    }])).toThrow("create 操作的目标标签 aliases 包含重复值");
+  });
 });

@@ -1,39 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import type { GitHubClientPort, Repository } from "../src/github-client";
-import type { ExistingLabel, LabelDefinition } from "../src/label-types";
+import type { RepositoryCatalogPort } from "../src/github-port";
+import type { RepositoryMetadata } from "../src/repository-types";
 import { RepositorySelector } from "../src/repository-selector";
 
-class FakeClient implements GitHubClientPort {
+class FakeClient implements RepositoryCatalogPort {
   readonly calls: string[] = [];
 
   constructor(
-    private readonly repositories: Readonly<Record<string, Repository>>,
-    private readonly organizationRepositories: readonly Repository[] = [],
+    private readonly repositories: Readonly<Record<string, RepositoryMetadata>>,
+    private readonly organizationRepositories: readonly RepositoryMetadata[] = [],
   ) {}
 
-  async listOrganizationRepositories(owner: string): Promise<readonly Repository[]> {
+  async listOrganizationRepositories(owner: string): Promise<readonly RepositoryMetadata[]> {
     this.calls.push(`list:${owner}`);
     return this.organizationRepositories;
   }
 
-  async getRepository(owner: string, name: string): Promise<Repository> {
+  async getRepository(owner: string, name: string): Promise<RepositoryMetadata> {
     this.calls.push(`get:${owner}/${name}`);
     const repository = this.repositories[`${owner}/${name}`];
     if (repository === undefined) throw new Error("missing repository fixture");
     return repository;
   }
-
-  async listLabels(_fullName: string): Promise<readonly ExistingLabel[]> {
-    return [];
-  }
-
-  async createLabel(_fullName: string, _desired: LabelDefinition): Promise<void> {}
-  async updateLabel(_fullName: string, _currentName: string, _desired: LabelDefinition): Promise<void> {}
-  async deleteLabel(_fullName: string, _name: string): Promise<void> {}
 }
 
-function repository(fullName: string, overrides: Partial<Repository> = {}): Repository {
+function repository(fullName: string, overrides: Partial<RepositoryMetadata> = {}): RepositoryMetadata {
   return { fullName, archived: false, disabled: false, fork: false, ...overrides };
 }
 

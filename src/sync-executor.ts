@@ -1,4 +1,4 @@
-import type { GitHubClientPort } from "./github-client";
+import type { LabelWriterPort } from "./github-port";
 import type { SyncCounts } from "./sync-result";
 import { RepositorySyncError, zeroCounts } from "./sync-result";
 import { countFieldForAction, SyncPlan, type PlanEntry } from "./sync-plan";
@@ -8,7 +8,7 @@ type MutableCounts = { -readonly [Key in keyof SyncCounts]: SyncCounts[Key] };
 
 export class SyncExecutor {
   constructor(
-    private readonly client: GitHubClientPort,
+    private readonly client: LabelWriterPort,
     private readonly dryRun: boolean,
     private readonly output: Output = console.log,
   ) {}

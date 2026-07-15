@@ -15,19 +15,21 @@
 
 截至本路线图更新时，测试基线为 38 个测试、184 个断言，全部通过；核心入口和 `src/` 的行覆盖率约为 91.8%。覆盖率只是辅助证据，不代替行为与集成验证。
 
-## 当前开发基线：Node.js 24 迁移
+## 当前开发基线：Node.js 24 与整次运行安全基础
 
 主分支的下一版本正在保持 v1.3 对外契约的前提下迁移到 GitHub 原生 Node.js 24 Action：
 
-- TypeScript strict 和 pnpm 锁文件提供可复现的开发与构建环境
+- TypeScript strict、pnpm 锁文件和项目级 mise 配置提供可复现的开发与构建环境
 - `action.yml` 直接执行提交的 `dist/index.js`，调用方不再依赖 Ruby 或 Bash
 - `GovernanceConfig` 已收敛为纯本地配置模块，`RepositorySelector` 独占远程仓库选择
 - `GitHubClient` 已隐藏 REST 路径、分页、响应解析和读取重试
+- `Application` 会在首个写请求前完成所有仓库规划，并通过不可变 `RunPlan` 检查删除策略
+- `RunResult` 用判别联合统一成功、规划失败、安全阻止和执行失败
 - 配置、计划、传输、执行、报告和主入口测试已拆分为独立文件
 - Node 测试继续固定 v1.3 的 dry-run、写请求不重试、失败隔离和部分完成计数语义
 - `test/fixtures/ruby-v1.3-behavior.json` 固定 Ruby 基线的配置、仓库选择、重试矩阵、计划、请求顺序、输出、摘要和 Unicode 行为，Node parity 测试持续对照该快照
 
-语言迁移不加入删除保护、`exclude`、`RunPlan` 或计划摘要；这些功能仍按下述版本路线推进。
+当前开发基线已加入 `RunPlan` 和删除保护；`exclude`、类型化 HTTP 错误、计划摘要与计划 digest 仍按下述版本路线推进。
 
 ## 代码与设计评估
 
@@ -39,12 +41,13 @@
 - GitHub 读取重试与写入不重试的边界符合“避免重复变更”的安全目标
 - 配置解析保持 Ruby v1.3 的 YAML 1.1 标量语义，同时禁用 aliases、拒绝未知字段，并对标签所有权和 alias 关系进行交叉校验
 
-### 下一阶段必须先处理的设计约束
+### 已处理的设计约束
 
-| 现状 | 影响 | 调整方向 |
+| 原有现状 | 调整结果 | 当前保障 |
 | --- | --- | --- |
-| `RepositorySynchronizer#sync` 把读取、规划和执行绑在一起 | 无法在任何写入前检查整次运行的删除上限或计划摘要 | 将 Plan / Apply 提升到整次运行级别 |
-| `Application` 按仓库“规划后立即执行” | 后面的仓库规划失败时，前面的仓库已经被修改 | 完成全部仓库规划后，再按不可变 `RunPlan` 执行成功计划 |
+| `RepositorySynchronizer#sync` 把读取、规划和执行绑在一起 | 删除浅层同步 seam，由 `Application` 负责编排 | 所有仓库先规划，再执行成功计划 |
+| `Application` 按仓库“规划后立即执行” | 引入不可变 `RunPlan` | 首个写请求前完成总删除与单仓库删除检查 |
+| `RunResult` 同时维护结果与失败数组 | 改为成功/失败判别联合 | 失败、成功状态和总计都从 outcomes 派生 |
 
 路线图因此按“整次运行安全 → 配置与范围 → 审计”推进。性能优化和破坏性升级没有证据支撑，暂不排期。
 
@@ -54,14 +57,14 @@
 flowchart LR
   Config["GovernanceConfig<br/>本地配置"] --> Selector["RepositorySelector<br/>选择目标仓库"]
   Client["GitHub client<br/>远程适配"] --> Selector
-  Config --> Planner["RunPlanner<br/>生成整次计划"]
-  Selector --> Planner
-  Client --> Planner
-  Planner --> Plan["RunPlan<br/>不可变计划"]
+  Config --> Application["Application<br/>整次运行编排"]
+  Selector --> Application
+  Client --> Application
+  Application --> Plan["RunPlan<br/>不可变计划"]
   Plan --> Guard["Safety checks<br/>整次运行保护"]
-  Guard --> Executor["RunExecutor<br/>执行成功计划"]
+  Guard --> Executor["SyncExecutor<br/>执行成功计划"]
   Client --> Executor
-  Executor --> Result["RunResult<br/>结果与类型化失败"]
+  Executor --> Result["RunResult<br/>判别联合结果"]
   Result --> Writers["Summary / outputs"]
 ```
 
