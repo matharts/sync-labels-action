@@ -1,11 +1,14 @@
 # 在多个 GitHub 仓库间同步标签
 
-[![Release](https://badges.ws/badge/release-v1.3.0-blue?icon=github&iconColor=white)](https://github.com/matharts/sync-labels-action/releases/tag/v1.3.0)
+[![Release](https://badges.ws/badge/release-v1.4.0--rc.1-blue?icon=github&iconColor=white)](https://github.com/matharts/sync-labels-action/releases/tag/v1.4.0-rc.1)
 [![Codecov](https://badges.ws/codecov/c/github/matharts/sync-labels-action/main?icon=codecov&iconColor=white)](https://app.codecov.io/gh/matharts/sync-labels-action)
 [![Node.js 24](https://badges.ws/badge/Node.js-24-339933?icon=nodedotjs&iconColor=white)](action.yml)
 [![License](https://badges.ws/badge/license-MIT-blue)](LICENSE)
 
 MathArts Sync Labels 用一份标签清单和一份所有权策略统一组织内的 GitHub 标签。Action 默认只预览变更，只删除策略明确声明为组织所有的标签，并保留各仓库自己的标签。
+
+当前候选版本为 `v1.4.0-rc.1`，用于 Node.js 24 生产写入演练。升级说明、兼容性保证、
+删除安全配置和已知限制见[候选版本说明](docs/releases/v1.4.0-rc.1.md)。
 
 你需要维护三份文件：
 
