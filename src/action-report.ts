@@ -1,13 +1,7 @@
 import type { RunResult } from "./run-result";
 import { changed } from "./sync-result";
 
-export interface SummaryContext {
-  readonly owner: string;
-  readonly configFile: string;
-  readonly policyFile: string;
-}
-
-export interface ActionOutputs {
+interface ActionOutputs {
   readonly repositories: number;
   readonly changed: boolean;
   readonly created: number;
@@ -19,8 +13,81 @@ export interface ActionOutputs {
   readonly failures: number;
 }
 
-export function renderSummary(runResult: RunResult, context: SummaryContext): string {
-  const outputs = actionOutputs(runResult);
+interface ActionPublication {
+  readonly summary: string;
+  readonly outputs: ActionOutputs;
+}
+
+type ActionCompletion =
+  | { readonly status: "success" }
+  | { readonly status: "failure"; readonly message: string };
+
+export class ActionReport {
+  readonly publication: ActionPublication | null;
+  readonly completion: ActionCompletion;
+
+  private constructor(publication: ActionPublication | null, completion: ActionCompletion) {
+    this.publication =
+      publication === null
+        ? null
+        : Object.freeze({
+            summary: publication.summary,
+            outputs: Object.freeze({ ...publication.outputs }),
+          });
+    this.completion = Object.freeze({ ...completion });
+    Object.freeze(this);
+  }
+
+  static validation(context: {
+    readonly configFile: string;
+    readonly policyFile: string;
+  }): ActionReport {
+    return new ActionReport(
+      {
+        summary: renderValidationSummary(context),
+        outputs: validationOutputs(),
+      },
+      { status: "success" },
+    );
+  }
+
+  static synchronization(
+    runResult: RunResult,
+    context: {
+      readonly owner: string;
+      readonly configFile: string;
+      readonly policyFile: string;
+    },
+  ): ActionReport {
+    const outputs = synchronizationOutputs(runResult);
+    return new ActionReport(
+      {
+        summary: renderSynchronizationSummary(runResult, context, outputs),
+        outputs,
+      },
+      outputs.failures === 0
+        ? { status: "success" }
+        : { status: "failure", message: `${outputs.failures} 个仓库同步失败。` },
+    );
+  }
+
+  static failure(cause: unknown): ActionReport {
+    return new ActionReport(null, {
+      status: "failure",
+      message: cause instanceof Error ? cause.message : String(cause),
+    });
+  }
+}
+
+function renderSynchronizationSummary(
+  runResult: RunResult,
+  context: {
+    readonly owner: string;
+    readonly configFile: string;
+    readonly policyFile: string;
+  },
+  outputs: ActionOutputs,
+): string {
   const changedMeaning = runResult.mode === "preview" ? "完整计划包含变更" : "至少完成一项变更";
   const lines = [
     "# 标签同步结果",
@@ -85,7 +152,7 @@ export function renderSummary(runResult: RunResult, context: SummaryContext): st
   return `${lines.join("\n")}\n`;
 }
 
-export function renderValidationSummary(context: {
+function renderValidationSummary(context: {
   readonly configFile: string;
   readonly policyFile: string;
 }): string {
@@ -100,7 +167,7 @@ export function renderValidationSummary(context: {
   ].join("\n");
 }
 
-export function actionOutputs(runResult: RunResult): ActionOutputs {
+function synchronizationOutputs(runResult: RunResult): ActionOutputs {
   const totals = runResult.totals;
   return {
     repositories: runResult.outcomes.length,
@@ -115,7 +182,7 @@ export function actionOutputs(runResult: RunResult): ActionOutputs {
   };
 }
 
-export function validationOutputs(): ActionOutputs {
+function validationOutputs(): ActionOutputs {
   return {
     repositories: 0,
     changed: false,

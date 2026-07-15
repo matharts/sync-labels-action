@@ -4,11 +4,11 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { ActionReport } from "../src/action-report";
 import { GitHubClient, type HttpRequest } from "../src/github-client";
 import { GovernanceConfig } from "../src/governance-config";
 import { labelKey } from "../src/label-identity";
 import type { LabelDefinition, PlanningConfig } from "../src/label-types";
-import { actionOutputs, renderSummary } from "../src/reporting";
 import { RepositoryScope } from "../src/repository-scope";
 import { RunResult } from "../src/run-result";
 import { SyncExecutor } from "../src/sync-executor";
@@ -270,17 +270,21 @@ describe("Ruby v1.3 behavior parity", () => {
       },
     ]);
 
-    const summary = renderSummary(result, {
+    const report = ActionReport.synchronization(result, {
       owner: "matharts",
       configFile: "labels.yml",
       policyFile: "policy.yml",
     });
+    const publication = report.publication;
+    expect(publication).not.toBeNull();
+    if (publication === null) throw new Error("同步报告必须包含公开结果。");
+    const summary = publication.summary;
     const v13CompatibleSummary = summary
       .replace(/\n## 汇总\n[\s\S]*?(?=\n## 失败\n)/, "")
       .replace("| `matharts/failing` | 执行失败 |", "| `matharts/failing` | 失败 |")
       .replace("- `matharts/failing`（执行失败）：", "- `matharts/failing`：");
     expect(v13CompatibleSummary).toBe(rubyV13.reporting.summary);
-    expect(actionOutputs(result)).toEqual(rubyV13.reporting.outputs);
+    expect(publication.outputs).toEqual(rubyV13.reporting.outputs);
 
     for (const [input, expected] of Object.entries(rubyV13.unicode.keys)) {
       expect(labelKey(input)).toBe(expected);
