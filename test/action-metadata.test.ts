@@ -9,6 +9,7 @@ describe("action metadata", () => {
     const packageMetadata = JSON.parse(
       await readFile(join(process.cwd(), "package.json"), "utf8"),
     ) as { version: string };
+    const readme = await readFile(join(process.cwd(), "README.md"), "utf8");
     const metadata = parse(await readFile(join(process.cwd(), "action.yml"), "utf8")) as {
       inputs: Record<string, { description: string; required: boolean; default?: string }>;
       runs: { using: string; main?: string; steps?: unknown };
@@ -37,6 +38,10 @@ describe("action metadata", () => {
     });
     expect(metadata.inputs.validate_only?.description).toContain("不访问 GitHub API");
     expect(Object.keys(metadata.outputs).sort()).toEqual(outputNames.sort());
+    expect(metadata.outputs.changed?.description).toBe(
+      "预览模式表示完整计划是否包含变更；写入模式表示是否实际完成至少一项变更",
+    );
+    expect(readme).toContain("| `changed`      | 预览是否计划变更；写入是否完成变更 |");
     for (const output of Object.values(metadata.outputs)) {
       expect(output.description).not.toBe("");
       expect(output).not.toHaveProperty("value");

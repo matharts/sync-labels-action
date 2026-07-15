@@ -276,6 +276,7 @@ describe("Ruby v1.3 behavior parity", () => {
       policyFile: "policy.yml",
     });
     const v13CompatibleSummary = summary
+      .replace(/\n## 汇总\n[\s\S]*?(?=\n## 失败\n)/, "")
       .replace("| `matharts/failing` | 执行失败 |", "| `matharts/failing` | 失败 |")
       .replace("- `matharts/failing`（执行失败）：", "- `matharts/failing`：");
     expect(v13CompatibleSummary).toBe(rubyV13.reporting.summary);

@@ -47,7 +47,7 @@ inputs:
 
 outputs:
   changed:
-    description: "是否检测到或执行了任何新建、更新、重命名或删除"
+    description: "预览模式表示完整计划是否包含变更；写入模式表示是否实际完成至少一项变更"
   repositories:
     description: "本次处理的仓库数量"
   created:
