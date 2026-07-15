@@ -288,13 +288,15 @@ MathArts 的策略省略 `repositories.include`，因此预览和写入会覆盖
 - [`GitHubClient`](src/github-client.ts) 封装路径、分页、响应和重试
 - [`RepositorySelector`](src/repository-selector.ts) 独占仓库范围和状态规则
 
-开发环境使用 Node.js 24 和 `package.json` 固定的 pnpm 版本：
+开发环境使用 Node.js 24、项目级 [Nub](https://nubjs.com/) 和 `package.json` 固定的 pnpm 版本：
 
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm check
 corepack pnpm build
 ```
+
+Nub 仅用于直接执行 `script/**/*.ts`；pnpm 仍负责依赖管理，Action bundle 仍在 GitHub 原生 Node.js 24 运行时执行。Nub 在执行 TypeScript 时只负责转译、不执行类型检查，`pnpm check` 会继续使用 `tsc --noEmit` 检查脚本和应用代码的类型。
 
 `dist/index.js` 是提交给 GitHub Actions 执行的单文件 bundle。持续集成会运行严格类型检查、行为测试、固定引用检查，重新构建并验证 `dist/` 没有差异，同时使用 Actionlint 检查 workflow。
 

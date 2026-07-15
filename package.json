@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "validate:pins": "node script/validate-action-pins.mjs",
+    "validate:pins": "nub script/validate-action-pins.ts",
     "check": "pnpm typecheck && pnpm test && pnpm validate:pins"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
     "yaml": "2.9.0"
   },
   "devDependencies": {
+    "@nubjs/nub": "0.4.11",
     "@types/node": "24.13.3",
     "esbuild": "0.28.1",
     "typescript": "7.0.2",
