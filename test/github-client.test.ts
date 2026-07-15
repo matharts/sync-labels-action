@@ -120,6 +120,40 @@ describe("GitHubClient", () => {
     await expect(promise).rejects.not.toThrow("sensitive upstream response");
   });
 
+  it("redacts credentials from a structured error message", async () => {
+    const client = new GitHubClient({
+      token: "secret-token",
+      baseUrl: "https://api.example.test",
+      requester: async () => ({
+        status: 403,
+        headers: {},
+        body: '{"message":"Authorization: Bearer secret-token; echoed secret-token"}',
+      }),
+    });
+
+    const promise = client.listLabels("matharts/example");
+
+    await expect(promise).rejects.toThrow("Authorization: [REDACTED]; echoed [REDACTED]");
+    await expect(promise).rejects.not.toThrow("secret-token");
+  });
+
+  it("redacts credentials before truncating structured error messages", async () => {
+    const token = "secret-token";
+    const client = new GitHubClient({
+      token,
+      baseUrl: "https://api.example.test",
+      requester: async () => ({
+        status: 403,
+        headers: {},
+        body: JSON.stringify({ message: `${"x".repeat(495)}${token}` }),
+      }),
+    });
+
+    const promise = client.listLabels("matharts/example");
+
+    await expect(promise).rejects.not.toThrow(token.slice(0, 5));
+  });
+
   it("does not expose an invalid successful JSON body in an error", async () => {
     const client = new GitHubClient({
       token: "token",

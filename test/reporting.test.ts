@@ -5,6 +5,42 @@ import { RunResult } from "../src/run-result";
 import { zeroCounts } from "../src/sync-result";
 
 describe("reporting", () => {
+  it("labels successful and failed repositories by execution phase", () => {
+    const result = new RunResult("apply", [
+      {
+        kind: "success",
+        repository: "matharts/success",
+        counts: zeroCounts(),
+      },
+      {
+        kind: "failure",
+        repository: "matharts/planning",
+        phase: "planning",
+        error: "could not plan",
+        counts: zeroCounts(),
+      },
+      {
+        kind: "failure",
+        repository: "matharts/execution",
+        phase: "execution",
+        error: "could not apply",
+        counts: zeroCounts(),
+      },
+    ]);
+
+    const summary = renderSummary(result, {
+      owner: "matharts",
+      configFile: "labels.yml",
+      policyFile: "policy.yml",
+    });
+
+    expect(summary).toContain("| `matharts/success` | 同步完成 |");
+    expect(summary).toContain("| `matharts/planning` | 规划失败 |");
+    expect(summary).toContain("| `matharts/execution` | 执行失败 |");
+    expect(summary).toContain("- `matharts/planning`（规划失败）：could not plan");
+    expect(summary).toContain("- `matharts/execution`（执行失败）：could not apply");
+  });
+
   it("derives the job summary and outputs from the same run result", () => {
     const result = new RunResult("apply", [
       {

@@ -46,10 +46,10 @@ export class Application {
     if (safetyViolation !== undefined) {
       for (const entry of plan.entries) {
         const phase = entry.kind === "planning-failure" ? "planning" : "safety";
-        const message = entry.kind === "planning-failure" ? entry.error : safetyViolation;
+        const message = entry.kind === "planning-failure" ? entry.error : safetyViolation.message;
         this.#recordFailure(outcomes, entry.repository, phase, message, zeroCounts());
       }
-      return new RunResult(mode, outcomes);
+      return new RunResult(mode, outcomes, safetyViolation);
     }
 
     for (const entry of plan.entries) {
