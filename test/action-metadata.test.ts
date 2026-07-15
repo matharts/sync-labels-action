@@ -5,7 +5,10 @@ import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 
 describe("action metadata", () => {
-  it("declares a Node 24 JavaScript Action with the stable v1.3 interface", async () => {
+  it("declares the v1.4.0 release candidate on Node 24 with the stable v1.3 interface", async () => {
+    const packageMetadata = JSON.parse(
+      await readFile(join(process.cwd(), "package.json"), "utf8"),
+    ) as { version: string };
     const metadata = parse(await readFile(join(process.cwd(), "action.yml"), "utf8")) as {
       runs: { using: string; main?: string; steps?: unknown };
       outputs: Record<string, { description: string; value?: string }>;
@@ -22,6 +25,7 @@ describe("action metadata", () => {
       "failures",
     ];
 
+    expect(packageMetadata.version).toBe("1.4.0-rc.1");
     expect(metadata.runs).toEqual({ using: "node24", main: "dist/index.js" });
     expect(Object.keys(metadata.outputs).sort()).toEqual(outputNames.sort());
     for (const output of Object.values(metadata.outputs)) {
