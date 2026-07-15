@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env nub
 
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
@@ -45,8 +45,8 @@ if (errors === 0) {
   process.exitCode = 1;
 }
 
-async function actionFiles(directory) {
-  const files = [];
+async function actionFiles(directory: string): Promise<string[]> {
+  const files: string[] = [];
   for (const name of ["action.yml", "action.yaml"]) {
     const path = join(directory, name);
     if (await isFile(path)) files.push(path);
@@ -63,7 +63,7 @@ async function actionFiles(directory) {
   return files.sort();
 }
 
-async function isFile(path) {
+async function isFile(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isFile();
   } catch (error) {
@@ -72,6 +72,6 @@ async function isFile(path) {
   }
 }
 
-function isMissing(error) {
+function isMissing(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
