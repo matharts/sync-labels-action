@@ -26,13 +26,20 @@ const config: PlanningConfig = {
   },
 };
 
-function recordRequest(requests: HttpRequest[], request: HttpRequest): Promise<{
+function recordRequest(
+  requests: HttpRequest[],
+  request: HttpRequest,
+): Promise<{
   status: number;
   headers: Readonly<Record<string, string>>;
   body: string;
 }> {
   requests.push(request);
-  return Promise.resolve({ status: request.method === "DELETE" ? 204 : 200, headers: {}, body: "" });
+  return Promise.resolve({
+    status: request.method === "DELETE" ? 204 : 200,
+    headers: {},
+    body: "",
+  });
 }
 
 function serializedRequests(requests: readonly HttpRequest[]): readonly Record<string, unknown>[] {
@@ -52,7 +59,8 @@ describe("Ruby v1.3 behavior parity", () => {
     const directory = await mkdtemp(join(tmpdir(), "sync-labels-parity-"));
     const labelsPath = join(directory, "labels.yml");
     const policyPath = join(directory, "policy.yml");
-    const policy = 'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\n';
+    const policy =
+      'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\n';
 
     try {
       await writeFile(policyPath, policy, "utf8");
@@ -62,7 +70,9 @@ describe("Ruby v1.3 behavior parity", () => {
         "utf8",
       );
       const loaded = await GovernanceConfig.load({ labelsPath, policyPath });
-      expect(loaded.labels[0]?.description).toBe(rubyV13.configuration.yaml_1_1_boolean_description);
+      expect(loaded.labels[0]?.description).toBe(
+        rubyV13.configuration.yaml_1_1_boolean_description,
+      );
 
       await writeFile(
         labelsPath,
@@ -108,10 +118,12 @@ describe("Ruby v1.3 behavior parity", () => {
       rubyV13.repository_selection.request_paths,
     );
     expect(selected.map(({ fullName }) => fullName)).toEqual(rubyV13.repository_selection.selected);
-    await expect(selector.select({
-      owner: "matharts",
-      onlyRepository: "private-project",
-    })).rejects.toThrow(rubyV13.repository_selection.outside_allowlist_error);
+    await expect(
+      selector.select({
+        owner: "matharts",
+        onlyRepository: "private-project",
+      }),
+    ).rejects.toThrow(rubyV13.repository_selection.outside_allowlist_error);
     expect(requests).toHaveLength(2);
   });
 
@@ -133,7 +145,9 @@ describe("Ruby v1.3 behavior parity", () => {
             body: '{"message":"fixture failure"}',
           };
         },
-        sleeper: async (delay) => { delays.push(delay); },
+        sleeper: async (delay) => {
+          delays.push(delay);
+        },
         warning: () => {},
         maxRetries: scenario.max_retries,
       });
@@ -153,10 +167,13 @@ describe("Ruby v1.3 behavior parity", () => {
       baseUrl: "https://api.example.test",
       requester: async () => {
         attempts += 1;
-        if (attempts === 1) throw Object.assign(new Error("fixture timeout"), { code: network.code });
+        if (attempts === 1)
+          throw Object.assign(new Error("fixture timeout"), { code: network.code });
         return { status: 200, headers: {}, body: "[]" };
       },
-      sleeper: async (delay) => { delays.push(delay); },
+      sleeper: async (delay) => {
+        delays.push(delay);
+      },
       warning: () => {},
       maxRetries: network.max_retries,
     });
@@ -224,7 +241,10 @@ describe("Ruby v1.3 behavior parity", () => {
 
     let failure: RepositorySyncError | undefined;
     try {
-      await new SyncExecutor(client, false, (line) => output.push(line)).apply("matharts/example", plan);
+      await new SyncExecutor(client, false, (line) => output.push(line)).apply(
+        "matharts/example",
+        plan,
+      );
     } catch (error) {
       if (error instanceof RepositorySyncError) failure = error;
       else throw error;
@@ -252,11 +272,13 @@ describe("Ruby v1.3 behavior parity", () => {
       },
     ]);
 
-    expect(renderSummary(result, {
-      owner: "matharts",
-      configFile: "labels.yml",
-      policyFile: "policy.yml",
-    })).toBe(rubyV13.reporting.summary);
+    expect(
+      renderSummary(result, {
+        owner: "matharts",
+        configFile: "labels.yml",
+        policyFile: "policy.yml",
+      }),
+    ).toBe(rubyV13.reporting.summary);
     expect(actionOutputs(result)).toEqual(rubyV13.reporting.outputs);
 
     for (const [input, expected] of Object.entries(rubyV13.unicode.keys)) {
@@ -283,8 +305,8 @@ describe("Ruby v1.3 behavior parity", () => {
       { name: "type:", color: "FFFFFF", description: "" },
       { name: "type:😀", color: "FFFFFF", description: "" },
     ]);
-    expect(unicodePlan.entries
-      .filter((entry) => entry.action === "delete")
-      .map(({ name }) => name)).toEqual(rubyV13.unicode.stale_managed_order);
+    expect(
+      unicodePlan.entries.filter((entry) => entry.action === "delete").map(({ name }) => name),
+    ).toEqual(rubyV13.unicode.stale_managed_order);
   });
 });

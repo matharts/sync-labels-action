@@ -50,16 +50,18 @@ describe("GitHubClient", () => {
     expect(() => new GitHubClient({ token: "token", baseUrl: "" })).toThrow(
       "GitHub API 地址必须是有效的 HTTPS URL。",
     );
-    expect(() => new GitHubClient({ token: "token", baseUrl: "http://api.example.test" })).toThrow("HTTPS");
-    expect(() => new GitHubClient({ token: "token", baseUrl: "https://user@api.example.test" })).toThrow(
-      "不能包含凭据",
+    expect(() => new GitHubClient({ token: "token", baseUrl: "http://api.example.test" })).toThrow(
+      "HTTPS",
     );
-    expect(() => new GitHubClient({ token: "token", baseUrl: "https://api.example.test?" })).toThrow(
-      "不能包含凭据、查询参数或片段",
-    );
-    expect(() => new GitHubClient({ token: "token", baseUrl: "https://api.example.test#" })).toThrow(
-      "不能包含凭据、查询参数或片段",
-    );
+    expect(
+      () => new GitHubClient({ token: "token", baseUrl: "https://user@api.example.test" }),
+    ).toThrow("不能包含凭据");
+    expect(
+      () => new GitHubClient({ token: "token", baseUrl: "https://api.example.test?" }),
+    ).toThrow("不能包含凭据、查询参数或片段");
+    expect(
+      () => new GitHubClient({ token: "token", baseUrl: "https://api.example.test#" }),
+    ).toThrow("不能包含凭据、查询参数或片段");
   });
 
   it("retries rate-limited reads but not ordinary forbidden responses", async () => {
@@ -95,7 +97,9 @@ describe("GitHubClient", () => {
           body: '{"message":"resource not accessible"}',
         };
       },
-      sleeper: async () => { throw new Error("ordinary 403 must not retry"); },
+      sleeper: async () => {
+        throw new Error("ordinary 403 must not retry");
+      },
       warning: () => {},
     });
     await expect(forbidden.listLabels("matharts/example")).rejects.toThrow("Status: 403");
@@ -139,24 +143,30 @@ describe("GitHubClient", () => {
         attempts += 1;
         throw timeout;
       },
-      sleeper: async () => { throw new Error("mutation must not retry"); },
+      sleeper: async () => {
+        throw new Error("mutation must not retry");
+      },
       warning: () => {},
       maxRetries: 3,
     });
 
-    await expect(client.createLabel("matharts/example", {
-      name: "type: bug",
-      color: "D73A4A",
-      description: "bug",
-      aliases: [],
-    })).rejects.toBe(timeout);
+    await expect(
+      client.createLabel("matharts/example", {
+        name: "type: bug",
+        color: "D73A4A",
+        description: "bug",
+        aliases: [],
+      }),
+    ).rejects.toBe(timeout);
     expect(attempts).toBe(1);
   });
 
   it("does not retry permanent fetch TypeErrors", async () => {
     let attempts = 0;
     const tlsError = new TypeError("fetch failed", {
-      cause: Object.assign(new Error("self-signed certificate"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }),
+      cause: Object.assign(new Error("self-signed certificate"), {
+        code: "DEPTH_ZERO_SELF_SIGNED_CERT",
+      }),
     });
     const client = new GitHubClient({
       token: "token",
@@ -188,7 +198,9 @@ describe("GitHubClient", () => {
         if (attempts === 1) throw timeout;
         return { status: 200, headers: {}, body: "[]" };
       },
-      sleeper: async (delay) => { delays.push(delay); },
+      sleeper: async (delay) => {
+        delays.push(delay);
+      },
       warning: () => {},
       maxRetries: 1,
     });

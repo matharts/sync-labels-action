@@ -12,7 +12,11 @@ class RecordingClient implements LabelWriterPort {
   async createLabel(fullName: string, desired: LabelDefinition): Promise<void> {
     this.calls.push(`create:${fullName}:${desired.name}`);
   }
-  async updateLabel(fullName: string, currentName: string, desired: LabelDefinition): Promise<void> {
+  async updateLabel(
+    fullName: string,
+    currentName: string,
+    desired: LabelDefinition,
+  ): Promise<void> {
     this.calls.push(`update:${fullName}:${currentName}->${desired.name}`);
   }
   async deleteLabel(fullName: string, name: string): Promise<void> {
@@ -32,7 +36,11 @@ describe("SyncExecutor", () => {
     const client = new RecordingClient();
     const plan = new SyncPlan([
       { action: "rename", name: "bug", desired: bug },
-      { action: "create", name: "help wanted", desired: { ...bug, name: "help wanted", aliases: [] } },
+      {
+        action: "create",
+        name: "help wanted",
+        desired: { ...bug, name: "help wanted", aliases: [] },
+      },
       { action: "delete", name: "type: obsolete", reason: "stale_managed" },
       { action: "preserve", name: "custom" },
     ]);

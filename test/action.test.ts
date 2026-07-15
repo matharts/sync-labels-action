@@ -12,7 +12,9 @@ import type { RepositoryMetadata } from "../src/repository-types";
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })));
+  await Promise.all(
+    temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
+  );
 });
 
 class FakeClient implements GitHubPort {
@@ -20,17 +22,29 @@ class FakeClient implements GitHubPort {
 
   constructor(private readonly failingCreate?: string) {}
 
-  async listOrganizationRepositories(_owner: string): Promise<readonly RepositoryMetadata[]> { return []; }
+  async listOrganizationRepositories(_owner: string): Promise<readonly RepositoryMetadata[]> {
+    return [];
+  }
   async getRepository(owner: string, name: string): Promise<RepositoryMetadata> {
     return { fullName: `${owner}/${name}`, archived: false, disabled: false, fork: false };
   }
-  async listLabels(_fullName: string): Promise<readonly ExistingLabel[]> { return []; }
+  async listLabels(_fullName: string): Promise<readonly ExistingLabel[]> {
+    return [];
+  }
   async createLabel(_fullName: string, desired: LabelDefinition): Promise<void> {
     this.mutations.push(desired.name);
     if (desired.name === this.failingCreate) throw new Error("simulated mutation failure");
   }
-  async updateLabel(_fullName: string, _currentName: string, desired: LabelDefinition): Promise<void> { this.mutations.push(desired.name); }
-  async deleteLabel(_fullName: string, name: string): Promise<void> { this.mutations.push(name); }
+  async updateLabel(
+    _fullName: string,
+    _currentName: string,
+    desired: LabelDefinition,
+  ): Promise<void> {
+    this.mutations.push(desired.name);
+  }
+  async deleteLabel(_fullName: string, name: string): Promise<void> {
+    this.mutations.push(name);
+  }
 }
 
 describe("runAction", () => {
@@ -62,7 +76,9 @@ describe("runAction", () => {
       getInput: (name) => inputs[name] ?? "",
       setSecret: () => {},
       setOutput: (name, value) => outputs.set(name, value),
-      writeSummary: async (markdown) => { summaries.push(markdown); },
+      writeSummary: async (markdown) => {
+        summaries.push(markdown);
+      },
       setFailed: (message) => failures.push(message),
       info: () => {},
       error: () => {},
@@ -113,7 +129,9 @@ describe("runAction", () => {
       getInput: (name) => inputs[name] ?? "",
       setSecret: () => {},
       setOutput: (name, value) => outputs.set(name, value),
-      writeSummary: async (markdown) => { summaries.push(markdown); },
+      writeSummary: async (markdown) => {
+        summaries.push(markdown);
+      },
       setFailed: (message) => failures.push(message),
       info: () => {},
       error: () => {},

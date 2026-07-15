@@ -40,7 +40,9 @@ for (const absolutePath of files) {
 }
 
 if (errors === 0) {
-  console.log(`已验证 ${externalReferences} 个外部 Action 引用，全部固定到 Commit SHA 或容器 digest。`);
+  console.log(
+    `已验证 ${externalReferences} 个外部 Action 引用，全部固定到 Commit SHA 或容器 digest。`,
+  );
 } else {
   process.exitCode = 1;
 }

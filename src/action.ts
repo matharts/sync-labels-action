@@ -15,10 +15,16 @@ export interface ActionRuntime extends ActionLogger {
 }
 
 interface ActionDependencies {
-  readonly createClient?: (options: { readonly token: string; readonly baseUrl: string }) => GitHubPort;
+  readonly createClient?: (options: {
+    readonly token: string;
+    readonly baseUrl: string;
+  }) => GitHubPort;
 }
 
-export async function runAction(runtime: ActionRuntime, dependencies: ActionDependencies = {}): Promise<void> {
+export async function runAction(
+  runtime: ActionRuntime,
+  dependencies: ActionDependencies = {},
+): Promise<void> {
   try {
     const options = RuntimeOptions.load({
       SYNC_LABELS_TOKEN: runtime.getInput("token"),
@@ -35,7 +41,8 @@ export async function runAction(runtime: ActionRuntime, dependencies: ActionDepe
       labelsPath: options.configFile,
       policyPath: options.policyFile,
     });
-    const client = dependencies.createClient?.({ token: options.token, baseUrl: options.apiUrl }) ??
+    const client =
+      dependencies.createClient?.({ token: options.token, baseUrl: options.apiUrl }) ??
       new GitHubClient({ token: options.token, baseUrl: options.apiUrl });
     const repositories = await new RepositorySelector(client, config).select({
       owner: options.owner,
@@ -49,13 +56,20 @@ export async function runAction(runtime: ActionRuntime, dependencies: ActionDepe
     runtime.info(`Repositories: ${repositories.length}`);
     runtime.info("");
 
-    const result = await new Application({ client, config, dryRun: options.dryRun, logger: runtime }).run(repositories);
+    const result = await new Application({
+      client,
+      config,
+      dryRun: options.dryRun,
+      logger: runtime,
+    }).run(repositories);
 
-    await runtime.writeSummary(renderSummary(result, {
-      owner: options.owner,
-      configFile: options.configFile,
-      policyFile: options.policyFile,
-    }));
+    await runtime.writeSummary(
+      renderSummary(result, {
+        owner: options.owner,
+        configFile: options.configFile,
+        policyFile: options.policyFile,
+      }),
+    );
     for (const [name, value] of Object.entries(actionOutputs(result))) {
       runtime.setOutput(name, value);
     }

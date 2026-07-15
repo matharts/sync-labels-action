@@ -39,13 +39,16 @@ export class SyncExecutor {
         return;
       case "update":
       case "rename":
-        this.output(`${this.#prefix(entry.action.toUpperCase())}     ${entry.name} -> ${entry.desired.name}`);
+        this.output(
+          `${this.#prefix(entry.action.toUpperCase())}     ${entry.name} -> ${entry.desired.name}`,
+        );
         if (!this.dryRun) await this.client.updateLabel(fullName, entry.name, entry.desired);
         return;
       case "delete": {
-        const description = entry.reason === "legacy_alias"
-          ? `legacy alias ${entry.name}`
-          : `stale organization label ${entry.name}`;
+        const description =
+          entry.reason === "legacy_alias"
+            ? `legacy alias ${entry.name}`
+            : `stale organization label ${entry.name}`;
         this.output(`${this.#prefix("DELETE")}     ${description}`);
         if (!this.dryRun) await this.client.deleteLabel(fullName, entry.name);
         return;

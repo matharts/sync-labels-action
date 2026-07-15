@@ -1,3 +1,4 @@
 allowBuilds:
-  '@nubjs/nub': false
+  "@nubjs/nub": false
   esbuild: true
+  lefthook: true
