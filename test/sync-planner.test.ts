@@ -173,6 +173,14 @@ describe("SyncPlanner", () => {
     }])).toThrow("create 操作的目标标签 name 不能为空");
   });
 
+  it("rejects whitespace-only desired label names", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "   ",
+      desired: { name: "   ", color: "D73A4A", description: "bug", aliases: [] },
+    }])).toThrow("create 操作的目标标签 name 不能为空");
+  });
+
   it("rejects a desired label description beyond GitHub's limit", () => {
     expect(() => new SyncPlan([{
       action: "create",
@@ -187,6 +195,27 @@ describe("SyncPlanner", () => {
       name: "type: bug",
       desired: { name: "type: bug", color: "D73A4A", description: "bug", aliases: [""] },
     }])).toThrow("create 操作的目标标签 aliases 不能包含空值");
+  });
+
+  it("rejects whitespace-only desired label aliases", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "D73A4A", description: "bug", aliases: ["   "] },
+    }])).toThrow("create 操作的目标标签 aliases 不能包含空值");
+  });
+
+  it("rejects non-canonical surrounding whitespace at the plan boundary", () => {
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: " type: bug", color: "D73A4A", description: "bug", aliases: [] },
+    }])).toThrow("create 操作的目标标签 name 不能包含首尾空白");
+    expect(() => new SyncPlan([{
+      action: "create",
+      name: "type: bug",
+      desired: { name: "type: bug", color: "D73A4A", description: "bug", aliases: [" bug"] },
+    }])).toThrow("create 操作的目标标签 aliases 不能包含首尾空白");
   });
 
   it("rejects unknown desired label fields", () => {

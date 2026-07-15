@@ -1,10 +1,10 @@
-import type { SyncCounts } from "./sync-result";
-import { zeroCounts } from "./sync-result";
+import { sumCounts, type SyncCounts } from "./sync-result";
+
+export type RunMode = "preview" | "apply";
 
 export interface RepositorySuccess {
   readonly kind: "success";
   readonly repository: string;
-  readonly mode: "preview" | "apply";
   readonly counts: SyncCounts;
 }
 
@@ -19,9 +19,14 @@ export interface RepositoryFailure {
 export type RepositoryOutcome = RepositorySuccess | RepositoryFailure;
 
 export class RunResult {
+  readonly mode: RunMode;
   readonly outcomes: readonly RepositoryOutcome[];
 
-  constructor(outcomes: readonly RepositoryOutcome[]) {
+  constructor(mode: RunMode, outcomes: readonly RepositoryOutcome[]) {
+    if (mode !== "preview" && mode !== "apply") {
+      throw new TypeError(`运行模式无效：${JSON.stringify(mode)}`);
+    }
+    this.mode = mode;
     this.outcomes = Object.freeze(outcomes.map((outcome) => Object.freeze({
       ...outcome,
       counts: Object.freeze({ ...outcome.counts }),
@@ -38,12 +43,6 @@ export class RunResult {
   }
 
   get totals(): SyncCounts {
-    const totals = { ...zeroCounts() };
-    for (const result of this.outcomes) {
-      for (const field of Object.keys(totals) as (keyof SyncCounts)[]) {
-        totals[field] += result.counts[field];
-      }
-    }
-    return Object.freeze(totals);
+    return sumCounts(this.outcomes.map(({ counts }) => counts));
   }
 }

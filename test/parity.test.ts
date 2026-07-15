@@ -237,11 +237,10 @@ describe("Ruby v1.3 behavior parity", () => {
   });
 
   it("matches summaries, outputs, Unicode normalization, and URL escaping", async () => {
-    const result = new RunResult([
+    const result = new RunResult("apply", [
       {
         kind: "success",
         repository: "matharts/example",
-        mode: "apply",
         counts: { ...zeroCounts(), created: 1, updated: 2, deleted: 1, unchanged: 3, preserved: 4 },
       },
       {
@@ -257,7 +256,6 @@ describe("Ruby v1.3 behavior parity", () => {
       owner: "matharts",
       configFile: "labels.yml",
       policyFile: "policy.yml",
-      dryRun: false,
     })).toBe(rubyV13.reporting.summary);
     expect(actionOutputs(result)).toEqual(rubyV13.reporting.outputs);
 

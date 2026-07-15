@@ -26,10 +26,10 @@ describe("GovernanceConfig", () => {
   it("loads, validates, normalizes, and freezes a self-contained configuration", async () => {
     const [labelsPath, policyPath] = await writeConfiguration(
       `
-- name: "type: bug"
+- name: " type: bug "
   color: "#d73a4a"
-  description: "bug"
-  aliases: [bug]
+  description: " bug "
+  aliases: [" bug "]
 - name: "help wanted"
   color: "008672"
 `,

@@ -32,8 +32,11 @@ export function validatedLabelDefinition(value: unknown, context: string): Label
   const color = value.color as string;
   const description = value.description as string;
   const aliases = value.aliases as string[];
-  if (name.length === 0) {
+  if (name.trim().length === 0) {
     throw new TypeError(`${context}name 不能为空。`);
+  }
+  if (name !== name.trim()) {
+    throw new TypeError(`${context}name 不能包含首尾空白。`);
   }
   if ([...name].length > 50) {
     throw new TypeError(`${context}name 超过 50 个字符。`);
@@ -44,8 +47,14 @@ export function validatedLabelDefinition(value: unknown, context: string): Label
   if ([...description].length > 100) {
     throw new TypeError(`${context}description 超过 100 个字符。`);
   }
-  if (aliases.some((alias) => alias.length === 0)) {
+  if (description !== description.trim()) {
+    throw new TypeError(`${context}description 不能包含首尾空白。`);
+  }
+  if (aliases.some((alias) => alias.trim().length === 0)) {
     throw new TypeError(`${context}aliases 不能包含空值。`);
+  }
+  if (aliases.some((alias) => alias !== alias.trim())) {
+    throw new TypeError(`${context}aliases 不能包含首尾空白。`);
   }
   if (new Set(aliases.map(labelKey)).size !== aliases.length) {
     throw new TypeError(`${context}aliases 包含重复值。`);

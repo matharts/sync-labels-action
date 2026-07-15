@@ -1,5 +1,5 @@
 import { SyncPlan } from "./sync-plan";
-import { zeroCounts, type SyncCounts } from "./sync-result";
+import { sumCounts, type SyncCounts } from "./sync-result";
 
 export type RunPlanEntry =
   | { readonly kind: "planned"; readonly repository: string; readonly plan: SyncPlan }
@@ -38,17 +38,9 @@ export class RunPlan {
       }
       throw new TypeError("整次运行计划包含未知 entry。");
     }));
-    this.totals = Object.freeze(this.entries.reduce((totals, entry) => {
-      if (entry.kind === "planned") {
-        totals.created += entry.plan.counts.created;
-        totals.updated += entry.plan.counts.updated;
-        totals.renamed += entry.plan.counts.renamed;
-        totals.deleted += entry.plan.counts.deleted;
-        totals.unchanged += entry.plan.counts.unchanged;
-        totals.preserved += entry.plan.counts.preserved;
-      }
-      return totals;
-    }, { ...zeroCounts() }));
+    this.totals = sumCounts(this.entries.flatMap((entry) =>
+      entry.kind === "planned" ? [entry.plan.counts] : []
+    ));
     Object.freeze(this);
   }
 

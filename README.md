@@ -298,7 +298,7 @@ MathArts 的策略省略 `repositories.include`，因此预览和写入会覆盖
 - [`SyncExecutor`](src/sync-executor.ts) 预览或执行计划
 - [`GitHubClient`](src/github-client.ts) 封装路径、分页、响应和重试
 - [`RepositorySelector`](src/repository-selector.ts) 独占仓库范围和状态规则
-- [`RunResult`](src/run-result.ts) 用判别联合保存唯一结果，并派生失败和汇总计数
+- [`RunResult`](src/run-result.ts) 保存整次运行模式和判别联合结果，并派生失败、汇总计数与报告模式
 
 开发环境使用 Node.js 24、项目级 [Nub](https://nubjs.com/)，并通过项目级 `mise.toml` 安装 `package.json` 固定的 pnpm 版本：
 

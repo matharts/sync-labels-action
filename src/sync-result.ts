@@ -18,6 +18,16 @@ export function zeroCounts(): SyncCounts {
   };
 }
 
+export function sumCounts(values: Iterable<SyncCounts>): SyncCounts {
+  const totals: { -readonly [Field in keyof SyncCounts]: number } = { ...zeroCounts() };
+  for (const counts of values) {
+    for (const field of Object.keys(totals) as (keyof SyncCounts)[]) {
+      totals[field] += counts[field];
+    }
+  }
+  return Object.freeze(totals);
+}
+
 export function changed(counts: SyncCounts): boolean {
   return counts.created + counts.updated + counts.renamed + counts.deleted > 0;
 }

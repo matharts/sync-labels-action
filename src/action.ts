@@ -55,7 +55,6 @@ export async function runAction(runtime: ActionRuntime, dependencies: ActionDepe
       owner: options.owner,
       configFile: options.configFile,
       policyFile: options.policyFile,
-      dryRun: options.dryRun,
     }));
     for (const [name, value] of Object.entries(actionOutputs(result))) {
       runtime.setOutput(name, value);
@@ -65,7 +64,7 @@ export async function runAction(runtime: ActionRuntime, dependencies: ActionDepe
       runtime.setFailed(`${result.failures.length} 个仓库同步失败。`);
       return;
     }
-    runtime.info(options.dryRun ? "Dry Run 完成。" : "标签同步完成。");
+    runtime.info(result.mode === "preview" ? "Dry Run 完成。" : "标签同步完成。");
   } catch (error) {
     runtime.setFailed(errorMessage(error));
   }

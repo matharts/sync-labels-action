@@ -39,6 +39,7 @@ export class Application {
   }
 
   async run(repositories: readonly RepositoryTarget[]): Promise<RunResult> {
+    const mode = this.#dryRun ? "preview" : "apply";
     const plan = await this.#plan(repositories);
     const outcomes: RepositoryOutcome[] = [];
     const safetyViolation = this.#dryRun ? undefined : plan.safetyViolation(this.#safety);
@@ -48,7 +49,7 @@ export class Application {
         const message = entry.kind === "planning-failure" ? entry.error : safetyViolation;
         this.#recordFailure(outcomes, entry.repository, phase, message, zeroCounts());
       }
-      return new RunResult(outcomes);
+      return new RunResult(mode, outcomes);
     }
 
     for (const entry of plan.entries) {
@@ -64,7 +65,6 @@ export class Application {
         outcomes.push({
           kind: "success",
           repository: fullName,
-          mode: this.#dryRun ? "preview" : "apply",
           counts,
         });
       } catch (error) {
@@ -76,7 +76,7 @@ export class Application {
       }
     }
 
-    return new RunResult(outcomes);
+    return new RunResult(mode, outcomes);
   }
 
   async #plan(repositories: readonly RepositoryTarget[]): Promise<RunPlan> {
