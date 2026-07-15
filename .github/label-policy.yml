@@ -11,10 +11,15 @@ managed:
     - "process:"
     - "resolution:"
 
-  # 没有组织前缀、但由 MathArts 统一管理的 GitHub 约定标签。
+  # 没有组织前缀、但由 MathArts 统一管理的约定标签。
   exact_names:
     - "good first issue"
     - "help wanted"
+    - "needs-triage"
+    - "needs-info"
+    - "ready-for-agent"
+    - "ready-for-human"
+    - "wontfix"
 
   # 组织曾经拥有且仍需清理的旧标签名。
   # 从 labels.yml 的 aliases 中移除迁移映射后，也应暂时保留在这里，
@@ -24,7 +29,6 @@ managed:
     - "enhancement"
     - "documentation"
     - "duplicate"
-    - "wontfix"
 
 safety:
   # 2026-07-15 的全组织预览覆盖 6 个合格仓库，计划删除为 0。
