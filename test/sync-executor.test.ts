@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { LabelWriterPort } from "../src/github-port";
 import type { LabelDefinition } from "../src/label-types";
-import { SyncExecutor } from "../src/sync-executor";
+import { OperationCounts } from "../src/operation-counts";
+import { RepositorySyncError, SyncExecutor } from "../src/sync-executor";
 import { SyncPlan } from "../src/sync-plan";
-import { RepositorySyncError } from "../src/sync-result";
 
 class RecordingClient implements LabelWriterPort {
   readonly calls: string[] = [];
@@ -90,7 +90,7 @@ describe("SyncExecutor", () => {
 
     await expect(promise).rejects.toThrow("second mutation failed");
     await expect(promise).rejects.toMatchObject({
-      counts: { created: 1, updated: 0, renamed: 0, deleted: 0, unchanged: 0, preserved: 0 },
+      counts: new OperationCounts({ created: 1 }),
     } satisfies Partial<RepositorySyncError>);
   });
 });

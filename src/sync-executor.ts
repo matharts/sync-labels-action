@@ -1,10 +1,8 @@
 import type { LabelWriterPort } from "./github-port";
-import type { SyncCounts } from "./sync-result";
-import { RepositorySyncError, zeroCounts } from "./sync-result";
-import { countFieldForAction, SyncPlan, type PlanEntry } from "./sync-plan";
+import { OperationCounts, type SyncOperation } from "./operation-counts";
+import { SyncPlan, type PlanEntry } from "./sync-plan";
 
 type Output = (line: string) => void;
-type MutableCounts = { -readonly [Key in keyof SyncCounts]: SyncCounts[Key] };
 
 export class SyncExecutor {
   constructor(
@@ -13,21 +11,25 @@ export class SyncExecutor {
     private readonly output: Output = console.log,
   ) {}
 
-  async apply(fullName: string, plan: SyncPlan): Promise<SyncCounts> {
+  async apply(fullName: string, plan: SyncPlan): Promise<OperationCounts> {
     if (!(plan instanceof SyncPlan)) {
       throw new TypeError("apply 需要已验证的 SyncPlan。");
     }
 
-    const counts: MutableCounts = { ...zeroCounts() };
+    const completedOperations: SyncOperation[] = [];
     try {
       for (const entry of plan.entries) {
         await this.#applyEntry(fullName, entry);
-        counts[countFieldForAction(entry.action)] += 1;
+        completedOperations.push(entry.action);
       }
-      return Object.freeze({ ...counts });
+      return OperationCounts.fromOperations(completedOperations);
     } catch (error) {
       if (error instanceof RepositorySyncError) throw error;
-      throw new RepositorySyncError(errorMessage(error), counts, { cause: error });
+      throw new RepositorySyncError(
+        errorMessage(error),
+        OperationCounts.fromOperations(completedOperations),
+        { cause: error },
+      );
     }
   }
 
@@ -64,6 +66,16 @@ export class SyncExecutor {
 
   #prefix(action: string): string {
     return this.dryRun ? `WOULD ${action}` : action;
+  }
+}
+
+export class RepositorySyncError extends Error {
+  readonly counts: OperationCounts;
+
+  constructor(message: string, counts: OperationCounts, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "RepositorySyncError";
+    this.counts = counts;
   }
 }
 

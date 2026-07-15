@@ -88,7 +88,8 @@
 | `RepositoryScope`          | 集中仓库范围解析、选择顺序、显式仓库限制和仓库资格规则；配置与选择通过同一接口测试                                                 |
 | Action 调用                | 通过 `runAction` interface 集中模式前置要求、配置加载、仓库选择、整次规划、执行和 Action 报告发布；校验模式不会创建 GitHub adapter |
 | `GovernanceConfig`         | Action 与本地命令共享同一配置加载、规范化和交叉校验实现                                                                            |
-| `RunResult` 与 Action 报告 | 保留现有运行结果 seam，由同一结果派生摘要、计数、失败状态和 `changed`；v1.5 不改变公开语义，也不提前引入 v1.6 的稳定故障分类       |
+| `OperationCounts`          | 集中六类同步操作的字段映射、零值、聚合和 `changed`，计划、执行与报告消费同一计数事实                                               |
+| `RunResult` 与 Action 报告 | 通过不可变运行统计派生摘要、计数、失败状态和 `changed`；v1.5 不改变公开语义，也不提前引入 v1.6 的稳定故障分类                      |
 
 ### 发布门槛与剩余工作
 

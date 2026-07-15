@@ -1,5 +1,5 @@
 import { SyncPlan } from "./sync-plan";
-import { sumCounts, type SyncCounts } from "./sync-result";
+import { OperationCounts } from "./operation-counts";
 
 export type RunPlanEntry =
   | { readonly kind: "planned"; readonly repository: string; readonly plan: SyncPlan }
@@ -27,7 +27,7 @@ export interface RunSafetyViolation {
 
 export class RunPlan {
   readonly entries: readonly RunPlanEntry[];
-  readonly totals: SyncCounts;
+  readonly totals: OperationCounts;
 
   constructor(entries: readonly RunPlanEntry[]) {
     if (!Array.isArray(entries)) {
@@ -54,7 +54,7 @@ export class RunPlan {
         throw new TypeError("整次运行计划包含未知 entry。");
       }),
     );
-    this.totals = sumCounts(
+    this.totals = OperationCounts.sum(
       this.entries.flatMap((entry) => (entry.kind === "planned" ? [entry.plan.counts] : [])),
     );
     Object.freeze(this);

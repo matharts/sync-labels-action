@@ -9,12 +9,12 @@ import { GitHubClient, type HttpRequest } from "../src/github-client";
 import { GovernanceConfig } from "../src/governance-config";
 import { labelKey } from "../src/label-identity";
 import type { LabelDefinition, PlanningConfig } from "../src/label-types";
+import { OperationCounts } from "../src/operation-counts";
 import { RepositoryScope } from "../src/repository-scope";
 import { RunResult } from "../src/run-result";
-import { SyncExecutor } from "../src/sync-executor";
+import { RepositorySyncError, SyncExecutor } from "../src/sync-executor";
 import { SyncPlan } from "../src/sync-plan";
 import { SyncPlanner } from "../src/sync-planner";
-import { RepositorySyncError, zeroCounts } from "../src/sync-result";
 import rubyV13 from "./fixtures/ruby-v1.3-behavior.json";
 
 const desired: readonly LabelDefinition[] = rubyV13.desired;
@@ -259,14 +259,20 @@ describe("Ruby v1.3 behavior parity", () => {
       {
         kind: "success",
         repository: "matharts/example",
-        counts: { ...zeroCounts(), created: 1, updated: 2, deleted: 1, unchanged: 3, preserved: 4 },
+        counts: new OperationCounts({
+          created: 1,
+          updated: 2,
+          deleted: 1,
+          unchanged: 3,
+          preserved: 4,
+        }),
       },
       {
         kind: "failure",
         repository: "matharts/failing",
         phase: "execution",
         error: "bad | input\nsecond line",
-        counts: zeroCounts(),
+        counts: new OperationCounts(),
       },
     ]);
 

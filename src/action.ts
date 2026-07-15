@@ -2,11 +2,11 @@ import { ActionReport } from "./action-report";
 import { GitHubClient } from "./github-client";
 import type { GitHubPort, LabelSyncPort } from "./github-port";
 import { GovernanceConfig } from "./governance-config";
+import { OperationCounts } from "./operation-counts";
 import type { RepositoryTarget } from "./repository-types";
 import { RunPlan, type RunPlanEntry } from "./run-plan";
 import { RunResult, type RepositoryFailure, type RepositoryOutcome } from "./run-result";
-import { RepositorySyncError, zeroCounts } from "./sync-result";
-import { SyncExecutor } from "./sync-executor";
+import { RepositorySyncError, SyncExecutor } from "./sync-executor";
 import { SyncPlanner } from "./sync-planner";
 
 export interface ActionRuntime {
@@ -146,7 +146,7 @@ class ActionInvocation {
       for (const entry of plan.entries) {
         const phase = entry.kind === "planning-failure" ? "planning" : "safety";
         const message = entry.kind === "planning-failure" ? entry.error : safetyViolation.message;
-        this.#recordFailure(outcomes, entry.repository, phase, message, zeroCounts());
+        this.#recordFailure(outcomes, entry.repository, phase, message, new OperationCounts());
       }
       return new RunResult(mode, outcomes, safetyViolation);
     }
@@ -155,7 +155,7 @@ class ActionInvocation {
     for (const entry of plan.entries) {
       const fullName = entry.repository;
       if (entry.kind === "planning-failure") {
-        this.#recordFailure(outcomes, fullName, "planning", entry.error, zeroCounts());
+        this.#recordFailure(outcomes, fullName, "planning", entry.error, new OperationCounts());
         continue;
       }
 
@@ -165,7 +165,7 @@ class ActionInvocation {
         outcomes.push({ kind: "success", repository: fullName, counts });
       } catch (error) {
         const message = errorMessage(error);
-        const counts = error instanceof RepositorySyncError ? error.counts : zeroCounts();
+        const counts = error instanceof RepositorySyncError ? error.counts : new OperationCounts();
         this.#recordFailure(outcomes, fullName, "execution", message, counts);
       } finally {
         this.runtime.endGroup();
@@ -206,7 +206,7 @@ class ActionInvocation {
     fullName: string,
     phase: RepositoryFailure["phase"],
     message: string,
-    counts: ReturnType<typeof zeroCounts>,
+    counts: OperationCounts,
   ): void {
     const firstLine = message.split("\n", 1)[0] ?? "";
     this.runtime.error(`${fullName}: ${firstLine}`, "标签同步失败");
