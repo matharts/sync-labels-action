@@ -78,7 +78,7 @@ safety:
 
 ### 4. 添加预览工作流
 
-创建 `.github/workflows/preview-labels.yml`。以下示例固定到 `v1.4.0` 发布提交的完整提交哈希（SHA）：
+创建 `.github/workflows/preview-labels.yml`。以下示例固定到 `v1.4.0` 发布提交的完整提交哈希：
 
 ```yaml
 name: Preview organization labels
@@ -98,7 +98,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 ```
 
-完整 SHA 不会随版本标签移动。升级 Action 时，请审核新版本对应的提交，再更新引用。
+完整提交哈希不会随版本标签移动。升级 Action 时，请审核新版本对应的提交，再更新引用。
 
 ### 5. 检查预览结果
 
@@ -196,7 +196,7 @@ Action 区分规划失败、安全检查失败和写入失败：
 - 多个 alias 同时匹配一个正式标签时，该仓库不会产生任何写入
 - 所有仓库规划完成前不会发出写请求
 - 删除策略不满足时，整次运行不会发出任何写请求
-- GitHub API 在写入中途失败时，已完成的操作不会回滚
+- GitHub 应用程序编程接口（API）在写入中途失败时，已完成的操作不会回滚
 - 单个仓库失败后，Action 会继续处理其他仓库，并在最后返回失败状态
 - 任务摘要和输出会保留已经完成的操作计数
 
