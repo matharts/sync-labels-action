@@ -31,7 +31,7 @@ inputs:
     default: "true"
 
   repository:
-    description: "只同步指定仓库；留空时按 include 选择，未配置 include 则同步全部合格仓库"
+    description: "只同步指定仓库；必须满足 repositories.include 和 repositories.exclude 规则"
     required: false
     default: ""
 

@@ -9,7 +9,7 @@ import { GovernanceConfig } from "../src/governance-config";
 import { labelKey } from "../src/label-identity";
 import type { LabelDefinition, PlanningConfig } from "../src/label-types";
 import { actionOutputs, renderSummary } from "../src/reporting";
-import { RepositorySelector } from "../src/repository-selector";
+import { RepositoryScope } from "../src/repository-scope";
 import { RunResult } from "../src/run-result";
 import { SyncExecutor } from "../src/sync-executor";
 import { SyncPlan } from "../src/sync-plan";
@@ -108,18 +108,16 @@ describe("Ruby v1.3 behavior parity", () => {
         };
       },
     });
-    const selector = new RepositorySelector(client, {
-      repositoryNames: rubyV13.repository_selection.allowlist,
-    });
+    const scope = RepositoryScope.create({ include: rubyV13.repository_selection.allowlist });
 
-    const selected = await selector.select({ owner: "matharts" });
+    const selected = await scope.select(client, { owner: "matharts" });
 
     expect(requests.map((request) => new URL(request.url).pathname)).toEqual(
       rubyV13.repository_selection.request_paths,
     );
     expect(selected.map(({ fullName }) => fullName)).toEqual(rubyV13.repository_selection.selected);
     await expect(
-      selector.select({
+      scope.select(client, {
         owner: "matharts",
         onlyRepository: "private-project",
       }),
