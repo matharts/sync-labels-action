@@ -74,12 +74,11 @@
 | -------------------------------------------------------------------------------------- | ------------------------------ | -------------- |
 | [#28 `repositories.exclude`](https://github.com/matharts/sync-labels-action/issues/28) | 仓库排除策略                   | 无未关闭阻塞项 |
 | [#29 `validate_only`](https://github.com/matharts/sync-labels-action/issues/29)        | Action 离线校验模式            | 无未关闭阻塞项 |
+| [#43 `changed` 输出契约](https://github.com/matharts/sync-labels-action/issues/43)     | 统一公开描述和契约测试         | 无未关闭阻塞项 |
 | [#30 本地配置校验命令](https://github.com/matharts/sync-labels-action/issues/30)       | 复用 Action 规则的本地命令     | #29            |
-| [#31 准备候选版本](https://github.com/matharts/sync-labels-action/issues/31)           | 固定候选提交和版本元数据       | #28、#30       |
+| [#31 准备候选版本](https://github.com/matharts/sync-labels-action/issues/31)           | 固定候选提交和版本元数据       | #28、#30、#43  |
 | [#32 完成生产演练](https://github.com/matharts/sync-labels-action/issues/32)           | 验证范围控制、离线校验和兼容性 | #31            |
 | [#33 发布正式版本](https://github.com/matharts/sync-labels-action/issues/33)           | 发布版本并更新固定引用         | #32            |
-
-截至 2026-07-16，#28 和 #29 的未关闭原生阻塞项均为零，可以并行实现。
 
 ### 发布门槛
 
