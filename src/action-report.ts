@@ -1,5 +1,5 @@
 import type { RunResult } from "./run-result";
-import { changed } from "./sync-result";
+import { OperationCounts } from "./operation-counts";
 
 interface ActionOutputs {
   readonly repositories: number;
@@ -168,30 +168,21 @@ function renderValidationSummary(context: {
 }
 
 function synchronizationOutputs(runResult: RunResult): ActionOutputs {
-  const totals = runResult.totals;
+  const { repositories, counts, changed, failures } = runResult.statistics;
   return {
-    repositories: runResult.outcomes.length,
-    changed: changed(totals),
-    created: totals.created,
-    updated: totals.updated,
-    renamed: totals.renamed,
-    deleted: totals.deleted,
-    unchanged: totals.unchanged,
-    preserved: totals.preserved,
-    failures: runResult.failures.length,
+    repositories,
+    changed,
+    ...counts.toJSON(),
+    failures,
   };
 }
 
 function validationOutputs(): ActionOutputs {
+  const counts = new OperationCounts();
   return {
     repositories: 0,
-    changed: false,
-    created: 0,
-    updated: 0,
-    renamed: 0,
-    deleted: 0,
-    unchanged: 0,
-    preserved: 0,
+    changed: counts.changed,
+    ...counts.toJSON(),
     failures: 0,
   };
 }

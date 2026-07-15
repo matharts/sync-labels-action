@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { ActionReport } from "../src/action-report";
+import { OperationCounts } from "../src/operation-counts";
 import { RunResult } from "../src/run-result";
-import { zeroCounts } from "../src/sync-result";
 
 describe("ActionReport", () => {
   it("labels repositories by phase and derives failure completion from the same result", () => {
@@ -11,21 +11,21 @@ describe("ActionReport", () => {
         {
           kind: "success",
           repository: "matharts/success",
-          counts: zeroCounts(),
+          counts: new OperationCounts(),
         },
         {
           kind: "failure",
           repository: "matharts/planning",
           phase: "planning",
           error: "could not plan",
-          counts: zeroCounts(),
+          counts: new OperationCounts(),
         },
         {
           kind: "failure",
           repository: "matharts/execution",
           phase: "execution",
           error: "could not apply",
-          counts: zeroCounts(),
+          counts: new OperationCounts(),
         },
       ]),
       {
@@ -53,21 +53,20 @@ describe("ActionReport", () => {
         {
           kind: "success",
           repository: "matharts/example",
-          counts: {
-            ...zeroCounts(),
+          counts: new OperationCounts({
             created: 1,
             updated: 2,
             deleted: 1,
             unchanged: 3,
             preserved: 4,
-          },
+          }),
         },
         {
           kind: "failure",
           repository: "matharts/failing",
           phase: "execution",
           error: "bad | input\nsecond line",
-          counts: zeroCounts(),
+          counts: new OperationCounts(),
         },
       ]),
       {
@@ -103,7 +102,7 @@ describe("ActionReport", () => {
           repository: "matharts/failing",
           phase: "planning",
           error: "unavailable",
-          counts: zeroCounts(),
+          counts: new OperationCounts(),
         },
       ]),
       {
@@ -145,7 +144,7 @@ describe("ActionReport", () => {
           repository: "matharts/failing",
           phase: "execution",
           error: "first write failed",
-          counts: zeroCounts(),
+          counts: new OperationCounts(),
         },
       ]),
       {

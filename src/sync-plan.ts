@@ -1,7 +1,6 @@
 import type { LabelDefinition } from "./label-types";
 import { validatedLabelDefinition } from "./label-definition";
-import type { SyncCounts } from "./sync-result";
-import { zeroCounts } from "./sync-result";
+import { OperationCounts, type OperationCountValues } from "./operation-counts";
 
 export type DeleteReason = "legacy_alias" | "stale_managed";
 
@@ -23,7 +22,7 @@ export interface SerializedPlanEntry {
 
 export class SyncPlan {
   readonly entries: readonly PlanEntry[];
-  readonly counts: SyncCounts;
+  readonly counts: OperationCounts;
 
   constructor(entries: readonly PlanEntry[]) {
     if (!Array.isArray(entries)) {
@@ -31,38 +30,18 @@ export class SyncPlan {
     }
 
     this.entries = Object.freeze(entries.map((entry) => validateAndCopy(entry)));
-    const counts = { ...zeroCounts() };
-    for (const entry of this.entries) {
-      counts[countFieldForAction(entry.action)] += 1;
-    }
-    this.counts = Object.freeze(counts);
+    this.counts = OperationCounts.fromOperations(this.entries.map((entry) => entry.action));
     Object.freeze(this);
   }
 
-  toJSON(): { readonly entries: readonly SerializedPlanEntry[]; readonly counts: SyncCounts } {
+  toJSON(): {
+    readonly entries: readonly SerializedPlanEntry[];
+    readonly counts: OperationCountValues;
+  } {
     return {
       entries: this.entries.map((entry) => ({ ...entry })),
-      counts: { ...this.counts },
+      counts: this.counts.toJSON(),
     };
-  }
-}
-
-type CountField = keyof SyncCounts;
-
-export function countFieldForAction(action: PlanEntry["action"]): CountField {
-  switch (action) {
-    case "create":
-      return "created";
-    case "update":
-      return "updated";
-    case "rename":
-      return "renamed";
-    case "delete":
-      return "deleted";
-    case "unchanged":
-      return "unchanged";
-    case "preserve":
-      return "preserved";
   }
 }
 

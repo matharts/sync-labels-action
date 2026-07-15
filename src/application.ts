@@ -1,10 +1,10 @@
 import type { LabelSyncPort } from "./github-port";
 import type { PlanningConfig } from "./label-types";
+import { OperationCounts } from "./operation-counts";
 import type { RepositoryTarget } from "./repository-types";
 import { RunPlan, type RunPlanEntry, type RunSafetyPolicy } from "./run-plan";
 import { RunResult, type RepositoryFailure, type RepositoryOutcome } from "./run-result";
-import { RepositorySyncError, zeroCounts } from "./sync-result";
-import { SyncExecutor } from "./sync-executor";
+import { RepositorySyncError, SyncExecutor } from "./sync-executor";
 import { SyncPlanner } from "./sync-planner";
 
 export interface ActionLogger {
@@ -47,7 +47,7 @@ export class Application {
       for (const entry of plan.entries) {
         const phase = entry.kind === "planning-failure" ? "planning" : "safety";
         const message = entry.kind === "planning-failure" ? entry.error : safetyViolation.message;
-        this.#recordFailure(outcomes, entry.repository, phase, message, zeroCounts());
+        this.#recordFailure(outcomes, entry.repository, phase, message, new OperationCounts());
       }
       return new RunResult(mode, outcomes, safetyViolation);
     }
@@ -55,7 +55,7 @@ export class Application {
     for (const entry of plan.entries) {
       const fullName = entry.repository;
       if (entry.kind === "planning-failure") {
-        this.#recordFailure(outcomes, fullName, "planning", entry.error, zeroCounts());
+        this.#recordFailure(outcomes, fullName, "planning", entry.error, new OperationCounts());
         continue;
       }
 
@@ -69,7 +69,7 @@ export class Application {
         });
       } catch (error) {
         const message = errorMessage(error);
-        const counts = error instanceof RepositorySyncError ? error.counts : zeroCounts();
+        const counts = error instanceof RepositorySyncError ? error.counts : new OperationCounts();
         this.#recordFailure(outcomes, fullName, "execution", message, counts);
       } finally {
         this.#logger.endGroup();
@@ -105,7 +105,7 @@ export class Application {
     fullName: string,
     phase: RepositoryFailure["phase"],
     message: string,
-    counts: ReturnType<typeof zeroCounts>,
+    counts: OperationCounts,
   ): void {
     this.#reportFailure(fullName, message);
     outcomes.push({ kind: "failure", repository: fullName, phase, error: message, counts });

@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { Application, type ActionLogger } from "../src/application";
 import type { LabelSyncPort } from "../src/github-port";
 import type { ExistingLabel, PlanningConfig } from "../src/label-types";
+import { OperationCounts } from "../src/operation-counts";
 import type { RepositoryTarget } from "../src/repository-types";
-import { zeroCounts } from "../src/sync-result";
 
 function repository(fullName: string): RepositoryTarget {
   return { fullName };
@@ -100,7 +100,7 @@ describe("Application", () => {
       phase: "safety",
       error: expect.stringContaining("总删除操作数 2"),
     });
-    expect(result.totals).toEqual(zeroCounts());
+    expect(result.statistics.counts).toEqual(new OperationCounts());
   });
 
   it("continues after one repository fails and preserves its completed counts", async () => {
@@ -134,14 +134,14 @@ describe("Application", () => {
       repository("matharts/healthy"),
     ]);
 
-    expect(result.success).toBe(false);
+    expect(result.statistics.failures).toBe(1);
     expect(result.failures.map(({ repository: name }) => name)).toEqual(["matharts/failing"]);
     expect(result.outcomes.map(({ repository: name }) => name)).toEqual([
       "matharts/failing",
       "matharts/healthy",
     ]);
     expect(result.outcomes[0]?.counts.created).toBe(1);
-    expect(result.totals.created).toBe(2);
+    expect(result.statistics.counts.created).toBe(2);
     expect(events.join("\n")).toContain("simulated failure");
   });
 });
