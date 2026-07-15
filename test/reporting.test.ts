@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { actionOutputs, renderSummary } from "../src/reporting";
+import {
+  actionOutputs,
+  renderSummary,
+  renderValidationSummary,
+  validationOutputs,
+} from "../src/reporting";
 import { RunResult } from "../src/run-result";
 import { zeroCounts } from "../src/sync-result";
 
@@ -98,5 +103,22 @@ describe("reporting", () => {
 
     expect(result.mode).toBe("preview");
     expect(summary).toContain("Dry Run：`true`");
+  });
+
+  it("renders deterministic validation reporting with zero synchronization outputs", () => {
+    expect(
+      renderValidationSummary({ configFile: "labels.yml", policyFile: "policy.yml" }),
+    ).toContain("- GitHub API 请求：`0`");
+    expect(validationOutputs()).toEqual({
+      repositories: 0,
+      changed: false,
+      created: 0,
+      updated: 0,
+      renamed: 0,
+      deleted: 0,
+      unchanged: 0,
+      preserved: 0,
+      failures: 0,
+    });
   });
 });
