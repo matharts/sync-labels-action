@@ -87,6 +87,31 @@
   description: "正在等待上游项目、平台或外部依赖处理"
 
 # =============================================================================
+# Agent Triage
+# 供工程技能使用的五种规范分诊角色。
+# =============================================================================
+
+- name: "needs-triage"
+  color: "FBCA04"
+  description: "需要维护者评估此 Issue"
+
+- name: "needs-info"
+  color: "FEF2C0"
+  description: "等待报告者补充信息"
+
+- name: "ready-for-agent"
+  color: "0E8A16"
+  description: "说明完整，可交由 AFK 智能体处理"
+
+- name: "ready-for-human"
+  color: "1D76DB"
+  description: "需要由人工实现"
+
+- name: "wontfix"
+  color: "EDEDED"
+  description: "不会处理"
+
+# =============================================================================
 # Priority
 # 表示维护者确认后的处理优先级。
 #
@@ -191,8 +216,6 @@
 - name: "resolution: not planned"
   color: "EDEDED"
   description: "经过评估后，当前不计划继续处理"
-  aliases:
-    - "wontfix"
 
 - name: "resolution: cannot reproduce"
   color: "D4C5F9"
