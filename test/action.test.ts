@@ -20,12 +20,14 @@ afterEach(async () => {
 
 interface FakeClientOptions {
   readonly failingCreate?: string;
+  readonly failingDeleteRepository?: string;
   readonly failingList?: string;
   readonly labels?: (fullName: string) => readonly ExistingLabel[];
 }
 
 class FakeClient implements GitHubPort {
   readonly mutations: string[] = [];
+  readonly operations: string[] = [];
 
   constructor(private readonly options: FakeClientOptions = {}) {}
 
@@ -36,34 +38,41 @@ class FakeClient implements GitHubPort {
     return { fullName: `${owner}/${name}`, archived: false, disabled: false, fork: false };
   }
   async listLabels(fullName: string): Promise<readonly ExistingLabel[]> {
+    this.operations.push(`plan:${fullName}`);
     if (fullName === this.options.failingList) throw new Error("simulated planning failure");
     return this.options.labels?.(fullName) ?? [];
   }
-  async createLabel(_fullName: string, desired: LabelDefinition): Promise<void> {
+  async createLabel(fullName: string, desired: LabelDefinition): Promise<void> {
+    this.operations.push(`create:${fullName}:${desired.name}`);
     this.mutations.push(desired.name);
     if (desired.name === this.options.failingCreate) {
       throw new Error("simulated mutation failure");
     }
   }
   async updateLabel(
-    _fullName: string,
+    fullName: string,
     _currentName: string,
     desired: LabelDefinition,
   ): Promise<void> {
+    this.operations.push(`update:${fullName}:${desired.name}`);
     this.mutations.push(desired.name);
   }
-  async deleteLabel(_fullName: string, name: string): Promise<void> {
+  async deleteLabel(fullName: string, name: string): Promise<void> {
+    this.operations.push(`delete:${fullName}:${name}`);
     this.mutations.push(name);
+    if (fullName === this.options.failingDeleteRepository) {
+      throw new Error("simulated mutation failure");
+    }
   }
 }
 
 interface ActionScenario {
   readonly labels: string;
   readonly policy: string;
-  readonly dryRun: boolean;
+  readonly dryRun: boolean | string;
   readonly client: GitHubPort;
   readonly outputFailure?: Error;
-  readonly validateOnly?: boolean;
+  readonly validateOnly?: boolean | string;
   readonly token?: string;
   readonly owner?: string;
 }
@@ -147,7 +156,7 @@ describe("runAction", () => {
     const result = await runScenario({
       labels: BUG_LABEL,
       policy: BUG_POLICY,
-      dryRun: true,
+      dryRun: "not-a-boolean",
       validateOnly: true,
       token: "",
       owner: "",
@@ -171,6 +180,55 @@ describe("runAction", () => {
       preserved: 0,
       failures: 0,
     });
+  });
+
+  it.each([
+    ["true", true],
+    ["1", true],
+    ["yes", true],
+    ["on", true],
+    ["false", false],
+    ["0", false],
+    ["no", false],
+    ["off", false],
+    [" TRUE ", true],
+  ])("selects synchronization mode from dry_run value %j", async (dryRun, preview) => {
+    const client = new FakeClient();
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun,
+      client,
+    });
+
+    expect(result.failures).toEqual([]);
+    expect(result.logs).toContain(`Dry run: ${String(preview)}`);
+    expect(client.mutations).toHaveLength(preview ? 0 : 1);
+  });
+
+  it("rejects invalid mode inputs before creating a GitHub adapter", async () => {
+    const invalidDryRun = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: "treu",
+      client: new FakeClient(),
+    });
+    const invalidValidation = await runScenario({
+      labels: BUG_LABEL,
+      policy: BUG_POLICY,
+      dryRun: true,
+      validateOnly: "sometimes",
+      client: new FakeClient(),
+    });
+
+    expect(invalidDryRun.failures).toEqual([
+      "SYNC_LABELS_DRY_RUN 必须是 true/false、1/0、yes/no 或 on/off。",
+    ]);
+    expect(invalidValidation.failures).toEqual([
+      "SYNC_LABELS_VALIDATE_ONLY 必须是 true/false、1/0、yes/no 或 on/off。",
+    ]);
+    expect(invalidDryRun.clientCreations).toBe(0);
+    expect(invalidValidation.clientCreations).toBe(0);
   });
 
   it("stops publication after an output error and records that failure once", async () => {
@@ -227,6 +285,33 @@ describe("runAction", () => {
     expect(missingOwner.failures).toEqual(["SYNC_LABELS_OWNER 不能为空。"]);
     expect(missingToken.clientCreations).toBe(0);
     expect(missingOwner.clientCreations).toBe(0);
+  });
+
+  it("plans every repository before the first mutation", async () => {
+    const client = new FakeClient({
+      labels: (fullName) =>
+        fullName.endsWith("ambiguous")
+          ? [
+              { name: "enhancement", color: "FFFFFF", description: "legacy" },
+              { name: "feature", color: "FFFFFF", description: "legacy" },
+            ]
+          : [],
+    });
+    const result = await runScenario({
+      labels:
+        '- name: "type: feature"\n  color: "A2EEEF"\n  description: "feature"\n  aliases: [enhancement, feature]\n',
+      policy:
+        'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: [enhancement, feature]\nrepositories:\n  include: [healthy, ambiguous]\n',
+      dryRun: false,
+      client,
+    });
+
+    expect(client.operations).toEqual([
+      "plan:matharts/healthy",
+      "plan:matharts/ambiguous",
+      "create:matharts/healthy:type: feature",
+    ]);
+    expect(result.failures).toEqual(["1 个仓库同步失败。"]);
   });
 
   it("reports deletion risk without changing execution outputs when safety blocks apply", async () => {
@@ -384,6 +469,35 @@ describe("runAction", () => {
     expect(result.outputs.get("changed")).toBe(true);
     expect(result.outputs.get("failures")).toBe(1);
     expect(result.failures).toEqual(["1 个仓库同步失败。"]);
+    expect(result.summary).toContain("simulated mutation failure");
+  });
+
+  it("continues after one repository fails and preserves completed counts", async () => {
+    const client = new FakeClient({
+      failingDeleteRepository: "matharts/failing",
+      labels: (fullName) =>
+        fullName.endsWith("failing")
+          ? [{ name: "type: obsolete", color: "FFFFFF", description: "stale" }]
+          : [],
+    });
+    const result = await runScenario({
+      labels: BUG_LABEL,
+      policy:
+        'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\nrepositories:\n  include: [failing, healthy]\n',
+      dryRun: false,
+      client,
+    });
+
+    expect(client.operations).toEqual([
+      "plan:matharts/failing",
+      "plan:matharts/healthy",
+      "create:matharts/failing:type: bug",
+      "delete:matharts/failing:type: obsolete",
+      "create:matharts/healthy:type: bug",
+    ]);
+    expect(result.outputs.get("created")).toBe(2);
+    expect(result.outputs.get("failures")).toBe(1);
+    expect(result.summary).toContain("| `matharts/healthy` | 同步完成 |");
     expect(result.summary).toContain("simulated mutation failure");
   });
 });

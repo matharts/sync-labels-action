@@ -69,26 +69,26 @@
 
 功能 Issue 已落地到 `main`；剩余工作只涉及候选版本、生产演练和正式发布。原生 Issue 依赖关系继续规定发布顺序。
 
-| Issue                                                                                  | 代码状态 | 证据或下一步                                                              |
-| -------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------- |
-| [#28 `repositories.exclude`](https://github.com/matharts/sync-labels-action/issues/28) | 已实现   | `RepositoryScope`、配置交叉校验和接口测试已由 PR #46 交付                 |
-| [#29 `validate_only`](https://github.com/matharts/sync-labels-action/issues/29)        | 已实现   | `RuntimeOptions` 校验模式、零 GitHub 客户端路径和零值输出已由 PR #47 交付 |
-| [#43 `changed` 输出契约](https://github.com/matharts/sync-labels-action/issues/43)     | 已完成   | 预览与写入语义、Action metadata、摘要和契约测试已由 PR #48 统一           |
-| [#30 本地配置校验命令](https://github.com/matharts/sync-labels-action/issues/30)       | 已实现   | 复用 `GovernanceConfig` 的 `pnpm validate:config` 已由 PR #49 交付        |
-| [#31 准备候选版本](https://github.com/matharts/sync-labels-action/issues/31)           | 下一步   | 更新仍固定在 `v1.4.0` 的版本元数据，构建并固定候选提交                    |
-| [#32 完成生产演练](https://github.com/matharts/sync-labels-action/issues/32)           | 等待 #31 | 对候选提交验证范围控制、离线校验和现有 workflow 兼容性                    |
-| [#33 发布正式版本](https://github.com/matharts/sync-labels-action/issues/33)           | 等待 #32 | 发布经演练的候选提交，并更新正式版本和固定引用                            |
+| Issue                                                                                  | 代码状态 | 证据或下一步                                                          |
+| -------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------- |
+| [#28 `repositories.exclude`](https://github.com/matharts/sync-labels-action/issues/28) | 已实现   | `RepositoryScope`、配置交叉校验和接口测试已由 PR #46 交付             |
+| [#29 `validate_only`](https://github.com/matharts/sync-labels-action/issues/29)        | 已实现   | Action 调用的校验模式、零 GitHub 客户端路径和零值输出已由 PR #47 交付 |
+| [#43 `changed` 输出契约](https://github.com/matharts/sync-labels-action/issues/43)     | 已完成   | 预览与写入语义、Action metadata、摘要和契约测试已由 PR #48 统一       |
+| [#30 本地配置校验命令](https://github.com/matharts/sync-labels-action/issues/30)       | 已实现   | 复用 `GovernanceConfig` 的 `pnpm validate:config` 已由 PR #49 交付    |
+| [#31 准备候选版本](https://github.com/matharts/sync-labels-action/issues/31)           | 下一步   | 更新仍固定在 `v1.4.0` 的版本元数据，构建并固定候选提交                |
+| [#32 完成生产演练](https://github.com/matharts/sync-labels-action/issues/32)           | 等待 #31 | 对候选提交验证范围控制、离线校验和现有 workflow 兼容性                |
+| [#33 发布正式版本](https://github.com/matharts/sync-labels-action/issues/33)           | 等待 #32 | 发布经演练的候选提交，并更新正式版本和固定引用                        |
 
 ### 架构演进结果
 
 架构深化已随功能落地，不增加独立功能范围：
 
-| 模块                       | 当前结果                                                                                                                     |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `RepositoryScope`          | 集中仓库范围解析、选择顺序、显式仓库限制和仓库资格规则；配置与选择通过同一接口测试                                           |
-| `RuntimeOptions`           | 使用 `validate`、`preview`、`apply` 判别模式集中模式专属前置要求与默认值；校验模式不会创建 GitHub adapter                    |
-| `GovernanceConfig`         | Action 与本地命令共享同一配置加载、规范化和交叉校验实现                                                                      |
-| `RunResult` 与 Action 报告 | 保留现有运行结果 seam，由同一结果派生摘要、计数、失败状态和 `changed`；v1.5 不改变公开语义，也不提前引入 v1.6 的稳定故障分类 |
+| 模块                       | 当前结果                                                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `RepositoryScope`          | 集中仓库范围解析、选择顺序、显式仓库限制和仓库资格规则；配置与选择通过同一接口测试                                                 |
+| Action 调用                | 通过 `runAction` interface 集中模式前置要求、配置加载、仓库选择、整次规划、执行和 Action 报告发布；校验模式不会创建 GitHub adapter |
+| `GovernanceConfig`         | Action 与本地命令共享同一配置加载、规范化和交叉校验实现                                                                            |
+| `RunResult` 与 Action 报告 | 保留现有运行结果 seam，由同一结果派生摘要、计数、失败状态和 `changed`；v1.5 不改变公开语义，也不提前引入 v1.6 的稳定故障分类       |
 
 ### 发布门槛与剩余工作
 
