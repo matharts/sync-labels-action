@@ -1,9 +1,9 @@
 import type { RunSafetyViolation } from "./run-plan";
 import { OperationCounts } from "./operation-counts";
 
-export type RunMode = "preview" | "apply";
+type RunMode = "preview" | "apply";
 
-export interface RepositorySuccess {
+interface RepositorySuccess {
   readonly kind: "success";
   readonly repository: string;
   readonly counts: OperationCounts;
@@ -19,7 +19,7 @@ export interface RepositoryFailure {
 
 export type RepositoryOutcome = RepositorySuccess | RepositoryFailure;
 
-export interface RunStatistics {
+interface RunStatistics {
   readonly repositories: number;
   readonly counts: OperationCounts;
   readonly failures: number;

@@ -43,10 +43,6 @@ export class RepositoryScope {
     return new RepositoryScope(include, exclude);
   }
 
-  get allRepositories(): boolean {
-    return this.#include === undefined;
-  }
-
   async select(
     client: RepositoryCatalogPort,
     {

@@ -13,7 +13,7 @@ export type PlanEntry =
   | { readonly action: "delete"; readonly name: string; readonly reason: DeleteReason }
   | { readonly action: "unchanged" | "preserve"; readonly name: string };
 
-export interface SerializedPlanEntry {
+interface SerializedPlanEntry {
   readonly action: string;
   readonly name: string;
   readonly desired?: LabelDefinition;

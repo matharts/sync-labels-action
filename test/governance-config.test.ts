@@ -57,13 +57,11 @@ safety:
       { name: "type: bug", color: "D73A4A", description: "bug", aliases: ["bug"] },
       { name: "help wanted", color: "008672", description: "", aliases: [] },
     ]);
-    expect(config.allRepositories).toBe(false);
     expect(config.safety).toEqual({
       deletions: "deny",
       maxDeletionsPerRepository: 2,
       maxDeletionsTotal: 3,
     });
-    expect(config.allRepositories).toBe(false);
     expect(config.managed("TYPE: obsolete")).toBe(true);
     expect(config.managed("custom")).toBe(false);
     expect(Object.isFrozen(config.labels)).toBe(true);
@@ -310,9 +308,7 @@ safety:
       'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\nrepositories:\n  exclude: [private]\n',
     );
 
-    const config = await GovernanceConfig.load({ labelsPath, policyPath });
-
-    expect(config.allRepositories).toBe(true);
+    await GovernanceConfig.load({ labelsPath, policyPath });
 
     const [, conflictingPolicyPath] = await writeConfiguration(
       labels,
@@ -351,7 +347,6 @@ safety:
       policyPath: join(process.cwd(), ".github/label-policy.yml"),
     });
 
-    expect(config.allRepositories).toBe(true);
     expect(config.labels.length).toBeGreaterThan(20);
     expect(config.safety).toEqual({
       deletions: "allow",
