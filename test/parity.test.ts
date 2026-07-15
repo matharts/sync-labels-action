@@ -272,13 +272,15 @@ describe("Ruby v1.3 behavior parity", () => {
       },
     ]);
 
-    expect(
-      renderSummary(result, {
-        owner: "matharts",
-        configFile: "labels.yml",
-        policyFile: "policy.yml",
-      }),
-    ).toBe(rubyV13.reporting.summary);
+    const summary = renderSummary(result, {
+      owner: "matharts",
+      configFile: "labels.yml",
+      policyFile: "policy.yml",
+    });
+    const v13CompatibleSummary = summary
+      .replace("| `matharts/failing` | 执行失败 |", "| `matharts/failing` | 失败 |")
+      .replace("- `matharts/failing`（执行失败）：", "- `matharts/failing`：");
+    expect(v13CompatibleSummary).toBe(rubyV13.reporting.summary);
     expect(actionOutputs(result)).toEqual(rubyV13.reporting.outputs);
 
     for (const [input, expected] of Object.entries(rubyV13.unicode.keys)) {

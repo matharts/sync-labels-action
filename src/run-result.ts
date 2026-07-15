@@ -1,3 +1,4 @@
+import type { RunSafetyViolation } from "./run-plan";
 import { sumCounts, type SyncCounts } from "./sync-result";
 
 export type RunMode = "preview" | "apply";
@@ -21,8 +22,13 @@ export type RepositoryOutcome = RepositorySuccess | RepositoryFailure;
 export class RunResult {
   readonly mode: RunMode;
   readonly outcomes: readonly RepositoryOutcome[];
+  readonly safetyViolation: RunSafetyViolation | undefined;
 
-  constructor(mode: RunMode, outcomes: readonly RepositoryOutcome[]) {
+  constructor(
+    mode: RunMode,
+    outcomes: readonly RepositoryOutcome[],
+    safetyViolation?: RunSafetyViolation,
+  ) {
     if (mode !== "preview" && mode !== "apply") {
       throw new TypeError(`运行模式无效：${JSON.stringify(mode)}`);
     }
@@ -35,6 +41,17 @@ export class RunResult {
         }),
       ),
     );
+    this.safetyViolation =
+      safetyViolation === undefined
+        ? undefined
+        : Object.freeze({
+            ...safetyViolation,
+            affectedRepositories: Object.freeze(
+              safetyViolation.affectedRepositories.map((repository) =>
+                Object.freeze({ ...repository }),
+              ),
+            ),
+          });
     Object.freeze(this);
   }
 

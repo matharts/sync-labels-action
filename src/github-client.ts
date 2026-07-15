@@ -32,6 +32,7 @@ const MAX_RETRY_DELAY = 60;
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 // oxlint-disable-next-line eslint/no-control-regex -- Error messages must not inject ASCII control characters into logs.
 const ASCII_CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]/g;
+const AUTHORIZATION_VALUE = /\bauthorization\s*:\s*(?:bearer|token)\s+[^\s,;]+/gi;
 const TRANSIENT_NETWORK_ERROR_CODES = new Set([
   "ECONNRESET",
   "ETIMEDOUT",
@@ -166,7 +167,7 @@ export class GitHubClient implements GitHubPort {
     const response = await this.#requestWithRetries(request);
 
     if (response.status < 200 || response.status > 299) {
-      throw githubResponseError(method, path, response);
+      throw githubResponseError(method, path, response, this.#token);
     }
     if (response.body.length === 0) return undefined;
     try {
@@ -253,14 +254,17 @@ function parseLabel(value: unknown): ExistingLabel {
   return Object.freeze({ name: value.name, color: value.color, description: description ?? null });
 }
 
-function githubResponseError(method: string, path: string, response: HttpResponse): Error {
+function githubResponseError(
+  method: string,
+  path: string,
+  response: HttpResponse,
+  token: string,
+): Error {
   let message = "GitHub API 返回了非 JSON 错误响应。";
   try {
     const parsed = JSON.parse(response.body) as unknown;
     if (isRecord(parsed) && typeof parsed.message === "string" && parsed.message.length > 0) {
-      message = parsed.message
-        .replace(ASCII_CONTROL_CHARACTERS, " ")
-        .slice(0, MAX_ERROR_MESSAGE_LENGTH);
+      message = safeResponseMessage(parsed.message, token);
     }
   } catch {
     // Do not expose an unstructured upstream response body in logs or summaries.
@@ -278,6 +282,14 @@ function githubResponseError(method: string, path: string, response: HttpRespons
   if (acceptedPermissions.length > 0) details.push(`Accepted permissions: ${acceptedPermissions}`);
   if (oauthScopes.length > 0) details.push(`Token scopes: ${oauthScopes}`);
   return new Error(details.join("\n"));
+}
+
+function safeResponseMessage(message: string, token: string): string {
+  let sanitized = message.replace(ASCII_CONTROL_CHARACTERS, " ");
+  if (token.length > 0) sanitized = sanitized.replaceAll(token, "[REDACTED]");
+  return sanitized
+    .replace(AUTHORIZATION_VALUE, "Authorization: [REDACTED]")
+    .slice(0, MAX_ERROR_MESSAGE_LENGTH);
 }
 
 function retryableResponse(response: HttpResponse): boolean {

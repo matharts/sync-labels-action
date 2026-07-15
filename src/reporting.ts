@@ -41,11 +41,31 @@ export function renderSummary(runResult: RunResult, context: SummaryContext): st
     );
   }
 
+  const safetyViolation = runResult.safetyViolation;
+  if (safetyViolation !== undefined) {
+    lines.push(
+      "",
+      "## 删除安全",
+      "",
+      `- 触发规则：\`safety.${safetyViolation.rule}\``,
+      `- 计划删除总量：\`${safetyViolation.plannedDeletions}\``,
+      `- 阻止原因：${safetyViolation.message}`,
+      "",
+      "| 仓库 | 计划删除 |",
+      "| --- | ---: |",
+    );
+    for (const repository of safetyViolation.affectedRepositories) {
+      lines.push(`| \`${repository.repository}\` | ${repository.deletions} |`);
+    }
+  }
+
   if (runResult.failures.length > 0) {
     lines.push("", "## 失败", "");
     for (const failure of runResult.failures) {
       const message = failure.error.replace(/\n/g, " ").replace(/\|/g, "\\|");
-      lines.push(`- \`${failure.repository}\`：${message}`);
+      lines.push(
+        `- \`${failure.repository}\`（${outcomeStatus(failure, runResult.mode)}）：${message}`,
+      );
     }
   }
 
@@ -68,6 +88,15 @@ export function actionOutputs(runResult: RunResult): ActionOutputs {
 }
 
 function outcomeStatus(outcome: RunResult["outcomes"][number], mode: RunResult["mode"]): string {
-  if (outcome.kind === "failure") return "失败";
+  if (outcome.kind === "failure") {
+    switch (outcome.phase) {
+      case "planning":
+        return "规划失败";
+      case "safety":
+        return "安全阻止";
+      case "execution":
+        return "执行失败";
+    }
+  }
   return mode === "preview" ? "预览完成" : "同步完成";
 }
