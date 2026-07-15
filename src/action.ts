@@ -3,7 +3,6 @@ import { GitHubClient } from "./github-client";
 import type { GitHubPort } from "./github-port";
 import { GovernanceConfig } from "./governance-config";
 import { actionOutputs, renderSummary } from "./reporting";
-import { RepositorySelector } from "./repository-selector";
 import { RuntimeOptions } from "./runtime-options";
 
 export interface ActionRuntime extends ActionLogger {
@@ -44,7 +43,7 @@ export async function runAction(
     const client =
       dependencies.createClient?.({ token: options.token, baseUrl: options.apiUrl }) ??
       new GitHubClient({ token: options.token, baseUrl: options.apiUrl });
-    const repositories = await new RepositorySelector(client, config).select({
+    const repositories = await config.repositoryScope.select(client, {
       owner: options.owner,
       onlyRepository: options.onlyRepository,
     });

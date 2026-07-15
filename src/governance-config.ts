@@ -5,25 +5,26 @@ import { parseDocument } from "yaml";
 import { validatedLabelDefinition } from "./label-definition";
 import { labelKey } from "./label-identity";
 import type { LabelDefinition, PlanningConfig } from "./label-types";
+import { RepositoryScope } from "./repository-scope";
 import type { RunSafetyPolicy } from "./run-plan";
 
 interface GovernancePolicy {
   readonly prefixes: readonly string[];
   readonly exactNames: ReadonlySet<string>;
   readonly legacyNames: ReadonlySet<string>;
-  readonly repositoryNames: readonly string[] | undefined;
+  readonly repositoryScope: RepositoryScope;
   readonly safety: RunSafetyPolicy;
 }
 
 export class GovernanceConfig implements PlanningConfig {
   readonly labels: readonly LabelDefinition[];
-  readonly repositoryNames: readonly string[] | undefined;
+  readonly repositoryScope: RepositoryScope;
   readonly safety: RunSafetyPolicy;
   readonly #policy: GovernancePolicy;
 
   private constructor(labels: readonly LabelDefinition[], policy: GovernancePolicy) {
     this.labels = Object.freeze([...labels]);
-    this.repositoryNames = policy.repositoryNames;
+    this.repositoryScope = policy.repositoryScope;
     this.safety = policy.safety;
     this.#policy = policy;
     Object.freeze(this);
@@ -43,7 +44,7 @@ export class GovernanceConfig implements PlanningConfig {
   }
 
   get allRepositories(): boolean {
-    return this.repositoryNames === undefined;
+    return this.repositoryScope.allRepositories;
   }
 
   managed(name: string): boolean {
@@ -167,7 +168,11 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
     new Set(["prefixes", "exact_names", "legacy_names"]),
     `${path} 的 managed 包含未知字段`,
   );
-  rejectUnknownKeys(repositories, new Set(["include"]), `${path} 的 repositories 包含未知字段`);
+  rejectUnknownKeys(
+    repositories,
+    new Set(["include", "exclude"]),
+    `${path} 的 repositories 包含未知字段`,
+  );
   const safety = loadSafety(safetyValue, path);
 
   const prefixes = policyStringList(parsed.managed, "prefixes", path, false);
@@ -176,15 +181,21 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
   const repositoryNames = Object.prototype.hasOwnProperty.call(repositories, "include")
     ? policyStringList(repositories, "include", path, false)
     : undefined;
+  const excludedRepositoryNames = Object.prototype.hasOwnProperty.call(repositories, "exclude")
+    ? policyStringList(repositories, "exclude", path, true)
+    : [];
 
   const invalidPrefix = prefixes.find((prefix) => !prefix.endsWith(":"));
   if (invalidPrefix !== undefined) {
     throw new Error(`${path} 的受管前缀必须以冒号结尾：${invalidPrefix}`);
   }
-  const invalidRepository = repositoryNames?.find((name) => !/^[A-Za-z0-9._-]+$/.test(name));
-  if (invalidRepository !== undefined) {
-    throw new Error(`${path} 包含无效仓库名称：${invalidRepository}`);
-  }
+  const repositoryScope = RepositoryScope.create(
+    {
+      ...(repositoryNames === undefined ? {} : { include: repositoryNames }),
+      exclude: excludedRepositoryNames,
+    },
+    path,
+  );
 
   const exactKeys = new Set(exactNames.map(labelKey));
   const legacyKeys = new Set(legacyNames.map(labelKey));
@@ -197,8 +208,7 @@ function loadPolicy(parsed: unknown, path: string): GovernancePolicy {
     prefixes: Object.freeze(prefixes.map(labelKey)),
     exactNames: exactKeys,
     legacyNames: legacyKeys,
-    repositoryNames:
-      repositoryNames === undefined ? undefined : Object.freeze([...repositoryNames]),
+    repositoryScope,
     safety,
   });
 }

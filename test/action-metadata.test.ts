@@ -10,6 +10,7 @@ describe("action metadata", () => {
       await readFile(join(process.cwd(), "package.json"), "utf8"),
     ) as { version: string };
     const metadata = parse(await readFile(join(process.cwd(), "action.yml"), "utf8")) as {
+      inputs: Record<string, { description: string }>;
       runs: { using: string; main?: string; steps?: unknown };
       outputs: Record<string, { description: string; value?: string }>;
     };
@@ -27,6 +28,7 @@ describe("action metadata", () => {
 
     expect(packageMetadata.version).toBe("1.4.0");
     expect(metadata.runs).toEqual({ using: "node24", main: "dist/index.js" });
+    expect(metadata.inputs.repository?.description).toContain("repositories.exclude");
     expect(Object.keys(metadata.outputs).sort()).toEqual(outputNames.sort());
     for (const output of Object.values(metadata.outputs)) {
       expect(output.description).not.toBe("");

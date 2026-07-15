@@ -43,6 +43,7 @@ managed:
   legacy_names: [bug]
 repositories:
   include: [example, docs]
+  exclude: [private]
 safety:
   deletions: deny
   max_deletions_per_repository: 2
@@ -56,7 +57,7 @@ safety:
       { name: "type: bug", color: "D73A4A", description: "bug", aliases: ["bug"] },
       { name: "help wanted", color: "008672", description: "", aliases: [] },
     ]);
-    expect(config.repositoryNames).toEqual(["example", "docs"]);
+    expect(config.allRepositories).toBe(false);
     expect(config.safety).toEqual({
       deletions: "deny",
       maxDeletionsPerRepository: 2,
@@ -135,6 +136,26 @@ safety:
     );
   });
 
+  it("accepts exclude-only policies and rejects include/exclude overlap", async () => {
+    const labels = '- name: "type: bug"\n  color: "D73A4A"\n';
+    const [labelsPath, policyPath] = await writeConfiguration(
+      labels,
+      'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\nrepositories:\n  exclude: [private]\n',
+    );
+
+    const config = await GovernanceConfig.load({ labelsPath, policyPath });
+
+    expect(config.allRepositories).toBe(true);
+
+    const [, conflictingPolicyPath] = await writeConfiguration(
+      labels,
+      'version: 1\nmanaged:\n  prefixes: ["type:"]\n  exact_names: []\n  legacy_names: []\nrepositories:\n  include: [Example]\n  exclude: [example]\n',
+    );
+    await expect(
+      GovernanceConfig.load({ labelsPath, policyPath: conflictingPolicyPath }),
+    ).rejects.toThrow("repositories.include 与 repositories.exclude 不能重叠：Example");
+  });
+
   it("requires every alias to remain organization-owned", async () => {
     const [labelsPath, policyPath] = await writeConfiguration(
       '- name: "type: bug"\n  color: "D73A4A"\n  aliases: [bug]\n',
@@ -164,7 +185,6 @@ safety:
     });
 
     expect(config.allRepositories).toBe(true);
-    expect(config.repositoryNames).toBeUndefined();
     expect(config.labels.length).toBeGreaterThan(20);
     expect(config.safety).toEqual({
       deletions: "allow",
