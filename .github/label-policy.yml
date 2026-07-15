@@ -25,3 +25,10 @@ managed:
     - "documentation"
     - "duplicate"
     - "wontfix"
+
+safety:
+  # 2026-07-15 的全组织预览覆盖 6 个合格仓库，计划删除为 0。
+  # 允许一次受审查的单标签清理；批量删除必须先单独调整并审查阈值。
+  deletions: allow
+  max_deletions_per_repository: 1
+  max_deletions_total: 6
