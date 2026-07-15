@@ -350,6 +350,7 @@ describe("runAction", () => {
 
     expect(client.mutations).toEqual(["type: bug", "help wanted"]);
     expect(result.outputs.get("created")).toBe(1);
+    expect(result.outputs.get("changed")).toBe(true);
     expect(result.outputs.get("failures")).toBe(1);
     expect(result.failures).toEqual(["1 个仓库同步失败。"]);
     expect(result.summary).toContain("simulated mutation failure");

@@ -71,6 +71,8 @@ describe("reporting", () => {
     expect(summary).toContain("`matharts/example`");
     expect(summary).toContain("bad \\| input second line");
     expect(summary).toContain("Dry Run：`false`");
+    expect(summary).toContain("- Changed：`true`（至少完成一项变更）");
+    expect(summary).toContain("| 2 | 1 | 2 | 0 | 1 | 3 | 4 | 1 |");
     expect(actionOutputs(result)).toEqual({
       repositories: 2,
       changed: true,
@@ -120,5 +122,28 @@ describe("reporting", () => {
       preserved: 0,
       failures: 0,
     });
+  });
+
+  it("keeps changed false when apply completes no mutation, including a first-write failure", () => {
+    const result = new RunResult("apply", [
+      {
+        kind: "failure",
+        repository: "matharts/failing",
+        phase: "execution",
+        error: "first write failed",
+        counts: zeroCounts(),
+      },
+    ]);
+
+    const outputs = actionOutputs(result);
+    const summary = renderSummary(result, {
+      owner: "matharts",
+      configFile: "labels.yml",
+      policyFile: "policy.yml",
+    });
+
+    expect(outputs.changed).toBe(false);
+    expect(summary).toContain("- Changed：`false`（至少完成一项变更）");
+    expect(summary).toContain("| 1 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |");
   });
 });

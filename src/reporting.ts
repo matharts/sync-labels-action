@@ -20,6 +20,8 @@ export interface ActionOutputs {
 }
 
 export function renderSummary(runResult: RunResult, context: SummaryContext): string {
+  const outputs = actionOutputs(runResult);
+  const changedMeaning = runResult.mode === "preview" ? "完整计划包含变更" : "至少完成一项变更";
   const lines = [
     "# 标签同步结果",
     "",
@@ -40,6 +42,17 @@ export function renderSummary(runResult: RunResult, context: SummaryContext): st
         `${counts.renamed} | ${counts.deleted} | ${counts.unchanged} | ${counts.preserved} |`,
     );
   }
+
+  lines.push(
+    "",
+    "## 汇总",
+    "",
+    `- Changed：\`${String(outputs.changed)}\`（${changedMeaning}）`,
+    "",
+    "| 仓库 | 新建 | 更新 | 重命名 | 删除 | 未变化 | 保留扩展 | 失败 |",
+    "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    `| ${outputs.repositories} | ${outputs.created} | ${outputs.updated} | ${outputs.renamed} | ${outputs.deleted} | ${outputs.unchanged} | ${outputs.preserved} | ${outputs.failures} |`,
+  );
 
   const safetyViolation = runResult.safetyViolation;
   if (safetyViolation !== undefined) {
