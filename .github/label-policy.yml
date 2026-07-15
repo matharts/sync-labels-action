@@ -36,3 +36,8 @@ safety:
   deletions: allow
   max_deletions_per_repository: 1
   max_deletions_total: 6
+
+# v1.5.0-rc.1 演练：证明全组织模式会在选择目标后排除指定仓库。
+repositories:
+  exclude:
+    - ziwei
