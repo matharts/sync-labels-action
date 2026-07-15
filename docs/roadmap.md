@@ -2,7 +2,7 @@
 
 更新日期：2026-07-15
 
-本路线图供维护者确定版本边界和发布顺序。项目先发布 `main` 已完成的安全能力，再扩展范围控制、故障诊断和计划审计。性能优化必须由运行数据触发。每个次版本只交付一个主要结果，前一版本完成生产验证后才启动下一版本。
+本路线图供维护者确定版本边界和发布顺序。项目已经发布并完成 `v1.4.0` 的生产验证，当前主线进入 `v1.5.0` 的范围控制与离线校验；后续故障诊断、计划审计和性能优化仍由各自启动条件触发。每个次版本只交付一个主要结果，前一版本完成生产验证后才启动下一版本。
 
 ## 版本概览
 
@@ -11,7 +11,7 @@
 | 版本     | 目标窗口 | 状态     | 主要结果                           |
 | -------- | -------- | -------- | ---------------------------------- |
 | `v1.4.0` | 2026-07  | 已发布   | 发布 Node.js 24 与整次运行删除保护 |
-| `v1.5.0` | 2026-08  | 已规划   | 控制仓库范围并支持离线配置校验     |
+| `v1.5.0` | 2026-08  | 可启动   | 控制仓库范围并支持离线配置校验     |
 | `v1.6.0` | 2026-Q3  | 条件规划 | 提供稳定、可自动处理的故障诊断     |
 | `v1.7.0` | 2026-Q4  | 条件规划 | 输出稳定、可归档的运行计划         |
 | `v1.8.0` | 待定     | 条件规划 | 根据实测数据降低多仓库同步耗时     |
@@ -35,6 +35,8 @@
 - 对照 Ruby v1.3 行为快照的迁移等价性测试
 
 `v1.4.0` 已完成组织级预览、单仓库真实写入和零差异复查，并通过本地检查、可复现 bundle 比对和 `main` 持续集成（CI）。[正式版本](https://github.com/matharts/sync-labels-action/releases/tag/v1.4.0)的 Action 运行时代码与经过生产演练的候选版本一致；发布后的 `main` 仅增加版本引用和路线图更新，Action 运行时代码与正式版本一致。
+
+因此 `v1.5.0` 的启动条件已经满足。截至 2026-07-15，[#28](https://github.com/matharts/sync-labels-action/issues/28) 和 [#29](https://github.com/matharts/sync-labels-action/issues/29) 的原生依赖均没有未关闭阻塞项，是当前可以并行推进的两个入口。Issue 的状态标签应与原生依赖保持一致；过期的 `status: blocked` 不构成新的启动条件。
 
 ## v1.4.0：发布 Node.js 24 与整次运行安全
 
@@ -79,6 +81,17 @@
 - 增加 `validate_only` input，只解析并交叉校验标签和策略文件
 - 提供复用 `GovernanceConfig` 的本地校验命令
 
+### v1.5.0 当前执行顺序
+
+GitHub 原生 Issue 依赖关系是规范顺序：
+
+1. 并行实现 [#28 `repositories.exclude`](https://github.com/matharts/sync-labels-action/issues/28) 和 [#29 `validate_only`](https://github.com/matharts/sync-labels-action/issues/29)
+2. 在 #29 完成后实现 [#30 本地配置校验命令](https://github.com/matharts/sync-labels-action/issues/30)
+3. 在 #28 和 #30 完成后处理 [#31 候选版本](https://github.com/matharts/sync-labels-action/issues/31)
+4. 依次完成 [#32 仓库范围与离线校验演练](https://github.com/matharts/sync-labels-action/issues/32) 和 [#33 正式发布](https://github.com/matharts/sync-labels-action/issues/33)
+
+`v1.5.0` 不改变现有 output 语义：preview 的计数和 `changed` 反映完整计划，apply 只反映已经完成的操作；安全检查在首个写请求前阻止 apply 时，`changed` 保持 `false`。Action metadata、README 和测试必须使用这一表述。
+
 ### v1.5.0 验收条件
 
 满足以下条件后发布：
@@ -88,6 +101,8 @@
 - `validate_only` 不要求 token 或 owner，在断网环境中的 API 调用数为零
 - 本地命令与 Action 对同一配置返回相同的校验结果
 - 未设置新 input 的 v1.4 workflow 行为不变
+- Action 主入口覆盖普通运行、成功离线校验和配置错误，不再保留未执行的入口适配代码
+- `changed`、各操作计数和失败状态在 Action metadata、README、任务摘要和接口测试中的语义一致
 
 ## v1.6.0：稳定故障诊断契约
 
@@ -177,6 +192,8 @@
 路线图只维护版本边界和顺序。GitHub Milestone 管理版本，GitHub Issues 保存产品需求、实现任务和验收证据：
 
 - 每个实现 Issue 由一个聚焦的 Pull Request 完成
+- GitHub 原生依赖关系决定 Issue 是否被阻塞，`status:*` 标签必须随依赖变化同步更新
+- `docs/agents/triage-labels.md` 中的分诊角色必须映射到仓库实际存在的标签
 - 发布演练、文档同步和正式发布分别跟踪
 - 每个次版本先发布候选版本，再完成对应的运行演练
 - 补丁版本只处理回归、安全修复和 GitHub API 兼容问题
