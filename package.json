@@ -22,7 +22,7 @@
     "yaml": "2.9.0"
   },
   "devDependencies": {
-    "@nubjs/nub": "0.4.11",
+    "@nubjs/nub": "0.6.0",
     "@types/node": "24.13.3",
     "@vitest/coverage-v8": "4.1.10",
     "esbuild": "0.28.1",
