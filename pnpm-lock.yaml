@@ -16,8 +16,8 @@ importers:
         version: 2.9.0
     devDependencies:
       '@nubjs/nub':
-        specifier: 0.7.5
-        version: 0.7.5
+        specifier: 0.8.2
+        version: 0.8.2
       '@types/node':
         specifier: 26.3.0
         version: 26.3.0
@@ -262,52 +262,52 @@ packages:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
 
-  '@nubjs/nub-darwin-arm64@0.7.5':
-    resolution: {integrity: sha512-7XBzpw5NWdVxbcxyHvR9DHfip7f3Cxe7CUIJRyGq3vfhxZ/VFGavjeuEwsujxkzHInog/ZSviWRZ4JBqm5DJSQ==}
+  '@nubjs/nub-darwin-arm64@0.8.2':
+    resolution: {integrity: sha512-SZzxORIoekBlhS2COa7ojN+BDw5avGpPYNsWupWEJUhjWc4TQHIA1v/sQMAb9nNhhRcbynTSSQNJ8Fhml3gOAg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@nubjs/nub-darwin-x64@0.7.5':
-    resolution: {integrity: sha512-f/zXoWBAUYDYr5JPvMvM9/8rxAzi+gJKvSm9ToWcLmQ43fR+8xJdfqhhRThM+FVLInCpv35L9N28lfYiqxw+pw==}
+  '@nubjs/nub-darwin-x64@0.8.2':
+    resolution: {integrity: sha512-LCQhn0rvOCi2I2+jlo17lZX3QM0BaVsPyT6uwaFxpXRlV6fEC3ZrS2bip2xQCTkglUg3LamlUh8P1530cb860Q==}
     cpu: [x64]
     os: [darwin]
 
-  '@nubjs/nub-linux-arm64-musl@0.7.5':
-    resolution: {integrity: sha512-J33scULMTgPv83LL37gKBrcOOooo6QYdDC6Kz71CDZ96nbOClV2woJjjEQ8cUHkzMxQ9ZBsrIwUsPyqHEHw1NQ==}
+  '@nubjs/nub-linux-arm64-musl@0.8.2':
+    resolution: {integrity: sha512-VQrUOQxhnQrCfeLMqOH53bABWj0Xs5hUspzy+Aa+1gWVVmqgWSscXGw7xqa2XJP9qYxrohSt2WQFQMaLyhqkKg==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@nubjs/nub-linux-arm64@0.7.5':
-    resolution: {integrity: sha512-ffJcXQYsSfoWbC3eDYPs4pkCB0WJsycGnjduVVrWbmKy28U9DK9Jq3VXIK1/eivXilOfypnKLgv1MprxsJdUAA==}
+  '@nubjs/nub-linux-arm64@0.8.2':
+    resolution: {integrity: sha512-kF39SVXIl54gM9G2uMyXpkadLSci7RYZ26FECk7R8UDyEXx63vmtlW6ukhP63YodBVCSOENSSQLCK67ZSH8yQQ==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@nubjs/nub-linux-x64-musl@0.7.5':
-    resolution: {integrity: sha512-5d1sBAlVAjse31gsU9/bTkbfZ2Zlv4V3L4MPDqYU8TPlLjVQb7oUlyFA2I2DePvLhs1rE1y9d6KvnE9LwGD6hw==}
+  '@nubjs/nub-linux-x64-musl@0.8.2':
+    resolution: {integrity: sha512-dXl3qR7jbxE+/4/UNwMNCjKhb8pHWlt46Hh5dHnQskkyDjK6b8k7r1GSPWCLi9PUGyjtPFzgOeQJXupdDkr3aw==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@nubjs/nub-linux-x64@0.7.5':
-    resolution: {integrity: sha512-89oVc561kfaBat4J+iRCYqt0c23hr3zIWh9oHlGh1ghvQTKiPwOynup3q2GFRNiPFTF76Hw+SachTUJSlgM4Ug==}
+  '@nubjs/nub-linux-x64@0.8.2':
+    resolution: {integrity: sha512-CyZ+GU+xjYhImGla0HZFAL6dxnFfAw8FQWVdHqa20xoYInlbyFmmXRvX+ts01YfgqO+WYTcx+ZdRtDlVgyLBQw==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@nubjs/nub-win32-arm64@0.7.5':
-    resolution: {integrity: sha512-4b0VUmXXO/xO5bBMau14s5mad72yN74M2yp13l4M//Ei9KLk9BypcG+eZ3KcTmNtj0j43x40Vr+5yW71z75MtA==}
+  '@nubjs/nub-win32-arm64@0.8.2':
+    resolution: {integrity: sha512-lqfGQEIjB58JtMqRVIKmm2El3FoRtBRfMEp8dl98L59/VQuhvF9CM1dElGMSLKlj9KLxM24IphAeBLQX8xjL6A==}
     cpu: [arm64]
     os: [win32]
 
-  '@nubjs/nub-win32-x64@0.7.5':
-    resolution: {integrity: sha512-VRAQWoeHB3K9tUHrSjwctq+UE6CPqNAx2yxSDKcalFMpisCEpkUThsP/459KRAcqQ3To30e2hR12NpSo4aTfAg==}
+  '@nubjs/nub-win32-x64@0.8.2':
+    resolution: {integrity: sha512-CsmfOaOLFsXN5gZzzOs+241rHHmHp4LWiU78zJcCQhwKQqyG2JkuwHpFxE3f6o3ikURayCnM6gZgotYRE7js/A==}
     cpu: [x64]
     os: [win32]
 
-  '@nubjs/nub@0.7.5':
-    resolution: {integrity: sha512-mYU0tWKXjl8pcvULygtLPVOsVMDx2kl3+f0mY/8nJsn8cV1MzJnY/KLM9ecHaouJXZ2W9jsyIarhvS/El0pmiA==}
+  '@nubjs/nub@0.8.2':
+    resolution: {integrity: sha512-m+KiuVC8fFqDXpAwAcy9yzCAdRyk98JKsqfImYcqe9mkHHDVmhfUZXhHDVut2fxYhm4jtXITAqp/2T6xRXe/BQ==}
     engines: {node: '>=18.19.0'}
     hasBin: true
 
@@ -1424,40 +1424,40 @@ snapshots:
       '@tybys/wasm-util': 0.10.3
     optional: true
 
-  '@nubjs/nub-darwin-arm64@0.7.5':
+  '@nubjs/nub-darwin-arm64@0.8.2':
     optional: true
 
-  '@nubjs/nub-darwin-x64@0.7.5':
+  '@nubjs/nub-darwin-x64@0.8.2':
     optional: true
 
-  '@nubjs/nub-linux-arm64-musl@0.7.5':
+  '@nubjs/nub-linux-arm64-musl@0.8.2':
     optional: true
 
-  '@nubjs/nub-linux-arm64@0.7.5':
+  '@nubjs/nub-linux-arm64@0.8.2':
     optional: true
 
-  '@nubjs/nub-linux-x64-musl@0.7.5':
+  '@nubjs/nub-linux-x64-musl@0.8.2':
     optional: true
 
-  '@nubjs/nub-linux-x64@0.7.5':
+  '@nubjs/nub-linux-x64@0.8.2':
     optional: true
 
-  '@nubjs/nub-win32-arm64@0.7.5':
+  '@nubjs/nub-win32-arm64@0.8.2':
     optional: true
 
-  '@nubjs/nub-win32-x64@0.7.5':
+  '@nubjs/nub-win32-x64@0.8.2':
     optional: true
 
-  '@nubjs/nub@0.7.5':
+  '@nubjs/nub@0.8.2':
     optionalDependencies:
-      '@nubjs/nub-darwin-arm64': 0.7.5
-      '@nubjs/nub-darwin-x64': 0.7.5
-      '@nubjs/nub-linux-arm64': 0.7.5
-      '@nubjs/nub-linux-arm64-musl': 0.7.5
-      '@nubjs/nub-linux-x64': 0.7.5
-      '@nubjs/nub-linux-x64-musl': 0.7.5
-      '@nubjs/nub-win32-arm64': 0.7.5
-      '@nubjs/nub-win32-x64': 0.7.5
+      '@nubjs/nub-darwin-arm64': 0.8.2
+      '@nubjs/nub-darwin-x64': 0.8.2
+      '@nubjs/nub-linux-arm64': 0.8.2
+      '@nubjs/nub-linux-arm64-musl': 0.8.2
+      '@nubjs/nub-linux-x64': 0.8.2
+      '@nubjs/nub-linux-x64-musl': 0.8.2
+      '@nubjs/nub-win32-arm64': 0.8.2
+      '@nubjs/nub-win32-x64': 0.8.2
 
   '@oxc-project/types@0.139.0': {}
 
