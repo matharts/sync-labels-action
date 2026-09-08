@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@nubjs/nub": "0.8.3",
-    "@types/node": "26.4.1",
+    "@types/node": "26.5.0",
     "@vitest/coverage-v8": "4.1.11",
     "esbuild": "0.28.2",
     "lefthook": "2.1.12",
