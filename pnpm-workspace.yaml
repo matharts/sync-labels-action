@@ -2,3 +2,4 @@ allowBuilds:
   "@nubjs/nub": false
   esbuild: true
   lefthook: true
+minimumReleaseAge: 0
